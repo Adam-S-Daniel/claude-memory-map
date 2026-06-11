@@ -30,6 +30,8 @@ src/
   generate_suite.py   builds the 8 static curated diagrams in suite/
 tests/
   tests_picker.js     71-test puppeteer e2e suite (developed red/green TDD)
+scripts/
+  dev-server.js       zero-dep dev server: serve + live-reload + auto-rebuild
 suite/                static curated diagram variants (.mermaid sources)
 ```
 
@@ -42,6 +44,35 @@ node tests/tests_picker.js       # 71 tests: behavior, mobile, semantics, regres
 ```
 
 Rendering uses Mermaid 11.12.0 from cdnjs at runtime; the page degrades gracefully (shows the generated Mermaid source) if the CDN is unreachable.
+
+## Local development & debugging
+
+The test harness runs serverless Chromium in CI (`@sparticuz/chromium` at `/tmp/chromium`). For local work it auto-detects a desktop Chrome, so a one-time browser install is all that's needed:
+
+```bash
+npm install
+npm run setup:browser    # downloads Chrome-for-Testing into ~/.cache/puppeteer (Linux/WSL)
+npm test                 # auto-detects that Chrome; falls back to CHROMIUM_PATH if set
+```
+
+**Run the suite (local):** `npm test` resolves a browser in this order — `CHROMIUM_PATH` → newest Chrome under `~/.cache/puppeteer` → `/tmp/chromium` (CI). To watch it drive the UI:
+
+```bash
+npm run test:headed      # visible browser window
+npm run test:debug       # visible + DevTools open + 150ms SLOWMO per step
+# or ad hoc:  HEADED=1 DEVTOOLS=1 SLOWMO=200 node tests/tests_picker.js
+#             CHROMIUM_PATH=/path/to/chrome node tests/tests_picker.js
+```
+
+**Interactively debug `index.html`:** a zero-dependency dev server serves the page over HTTP (real origin, not `file://`), live-reloads on rebuild, and re-runs the Python build whenever `src/*.py` changes:
+
+```bash
+npm run dev              # build once, then serve with watch + live-reload on http://localhost:8000
+npm run serve            # serve current index.html without the initial build
+# options:  node scripts/dev-server.js --port 9000 --no-build
+```
+
+Open the printed `http://localhost:<port>/` in your browser (on WSL, your Windows browser works — `localhost` is forwarded) and use DevTools (F12). Edit a `src/*.py` builder and save: the server rebuilds `index.html` and the page reloads itself.
 
 ## Sourcing conventions
 
