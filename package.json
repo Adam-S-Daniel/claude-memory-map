@@ -4,7 +4,12 @@
   "description": "What Claude remembers — an interactive map of Claude's memory stores across chat, Claude Code, and Cowork contexts",
   "scripts": {
     "build": "python3 src/build_picker3.py",
-    "test": "node tests/tests_picker.js"
+    "test": "node tests/tests_picker.js",
+    "test:headed": "HEADED=1 node tests/tests_picker.js",
+    "test:debug": "HEADED=1 DEVTOOLS=1 SLOWMO=150 node tests/tests_picker.js",
+    "setup:browser": "npx --yes @puppeteer/browsers install chrome@stable --path \"$HOME/.cache/puppeteer\"",
+    "serve": "node scripts/dev-server.js",
+    "dev": "npm run build && node scripts/dev-server.js"
   },
   "devDependencies": {
     "@sparticuz/chromium": "^131.0.0",

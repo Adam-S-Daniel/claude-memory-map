@@ -3,9 +3,39 @@
 const puppeteer = require('puppeteer-core');
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
 const TARGET = 'file://' + path.resolve(__dirname, '../index.html');
-const CHROMIUM = process.env.CHROMIUM_PATH || '/tmp/chromium';
 const MERMAID_BUNDLE = path.resolve(__dirname, '../node_modules/mermaid/dist/mermaid.min.js');
+
+// Browser launch resolution.
+//   CI / serverless: CHROMIUM_PATH unset (or /tmp/chromium) -> @sparticuz/chromium args, headless shell.
+//   Local: auto-detect a Chrome-for-Testing under ~/.cache/puppeteer (or CHROMIUM_PATH) -> desktop args.
+//   Debug knobs (local only): HEADED=1 visible window, DEVTOOLS=1 open devtools, SLOWMO=<ms> per-step delay.
+function detectLocalChrome(){
+  const root = path.join(os.homedir(), '.cache', 'puppeteer', 'chrome');
+  try {
+    for (const d of fs.readdirSync(root).filter(n => n.startsWith('linux-')).sort().reverse()){
+      const exe = path.join(root, d, 'chrome-linux64', 'chrome');
+      if (fs.existsSync(exe)) return exe;
+    }
+  } catch {}
+  return null;
+}
+function launchOptions(){
+  const exe = process.env.CHROMIUM_PATH || detectLocalChrome();
+  const serverless = !exe || exe === '/tmp/chromium';
+  if (serverless){
+    return { executablePath: exe || '/tmp/chromium',
+      args: require('@sparticuz/chromium').default.args, headless: 'shell' };
+  }
+  return {
+    executablePath: exe,
+    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+    headless: process.env.HEADED ? false : 'new',
+    devtools: !!process.env.DEVTOOLS,
+    slowMo: process.env.SLOWMO ? Number(process.env.SLOWMO) : 0,
+  };
+}
 
 let failures = [], passes = 0;
 function check(cond, name){
@@ -14,8 +44,10 @@ function check(cond, name){
 }
 
 (async () => {
-  const browser = await puppeteer.launch({ executablePath: CHROMIUM,
-    args: require('@sparticuz/chromium').default.args, headless:'shell' });
+  const opts = launchOptions();
+  console.log(`Browser: ${path.basename(opts.executablePath)}  headless=${opts.headless}` +
+    `${opts.devtools ? ' +devtools' : ''}${opts.slowMo ? ` slowMo=${opts.slowMo}ms` : ''}`);
+  const browser = await puppeteer.launch(opts);
 
   async function freshPage(viewport, blockCdn=false, expandAll=true){
     const page = await browser.newPage();
