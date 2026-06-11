@@ -1,0 +1,49 @@
+---
+title: "Claude memory map — chat only"
+---
+flowchart LR
+
+subgraph CHAT["Claude chat — claude.ai, mobile and desktop apps"]
+direction TB
+  C1["Standalone chat"]
+  C2["Chat inside a Project"]
+  C3["Incognito chat
+  (no memory in or out)"]
+end
+
+subgraph ACCT["On your account — online, any device"]
+direction TB
+  S1["Saved facts (&quot;memory edits&quot;)
+  (kept word-for-word)"]
+  S2["Nightly chat summary
+  (&quot;memory summary&quot;)"]
+  S3["Project memory (&quot;project-scoped
+  memory&quot;) — one per Project"]
+end
+
+SET["Settings → Memory page
+(&quot;Manage memory&quot; · home of the
+&quot;Generate memory from chat history&quot; toggle)"]
+
+C1 -- "summarized overnight" --> S2
+C1 -- "saying “remember this”" --> S1
+S1 -. "feeds" .-> S2
+S2 -- "loaded into every new standalone chat" --> C1
+S1 --> C1
+C2 <-- "chatting · saying “remember this” · recalled in that Project's chats" --> S3
+S2 -. "displayed here, regenerated nightly · export" .-> SET
+SET -. "your edits · imports" .-> S1
+
+classDef ctx fill:#FFFFFF,stroke:#8A8478,stroke-width:1.2px,color:#3D3A34
+classDef quiet fill:#FDFBF7,stroke:#B7B1A4,stroke-width:1px,color:#6B675E
+classDef acct fill:#EEF3F8,stroke:#4A6B8F,stroke-width:1.2px,color:#3D3A34
+classDef repo fill:#F7F3E8,stroke:#9A6F33,stroke-width:1.2px,color:#3D3A34
+classDef wsl fill:#EFF5F0,stroke:#54805C,stroke-width:1.2px,color:#3D3A34
+classDef win fill:#FBF0EC,stroke:#B06A4F,stroke-width:1.2px,color:#3D3A34
+classDef mac fill:#EDF1F5,stroke:#5B6B7F,stroke-width:1.2px,color:#3D3A34
+classDef cwloc fill:#F6EFF4,stroke:#8F5C82,stroke-width:1.2px,color:#3D3A34
+class C1,C2,SET ctx
+class C3 quiet
+class S1,S2,S3 acct
+style CHAT fill:#FDFBF7,stroke:#C9C3B6,stroke-width:1px,color:#6B675E
+style ACCT fill:#FBFDFF,stroke:#A8BBD1,stroke-width:1px,color:#4A6B8F

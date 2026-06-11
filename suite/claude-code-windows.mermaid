@@ -1,0 +1,84 @@
+---
+title: "Claude memory map — Claude Code (Windows, incl. WSL)"
+---
+flowchart LR
+
+subgraph WSLSIDE["runs on the WSL (Linux) side"]
+direction TB
+  K1["CLI in WSL — bash"]
+  K2["CLI in WSL — pwsh
+  (pwsh is just a shell; the
+  process still lives in WSL)"]
+  K3["VS Code on Windows,
+  Remote-WSL connection
+  (the server runs inside WSL)"]
+end
+
+subgraph WINSIDE["runs on the Windows side"]
+direction TB
+  K4["CLI in Windows"]
+  K5["VS Code on Windows — local"]
+end
+
+C5["On the web
+(fresh cloud sandbox per task)"]
+
+subgraph REPO["Saved with the project's files"]
+  S4["Project notes file — CLAUDE.md
+  (&quot;project instructions&quot;)
+  (one per repo,
+  read by whatever opens it)"]
+end
+
+subgraph WSLFS["WSL file system — ~/.claude"]
+direction TB
+  W1["User CLAUDE.md — WSL
+  (&quot;user instructions&quot;)
+  (all projects on this side)"]
+  W2["Claude's own notes — WSL
+  (&quot;auto memory&quot;)
+  (one set per project, on this side only)"]
+end
+
+subgraph WINFS["Windows file system — C:\Users\you\.claude"]
+direction TB
+  N1["User CLAUDE.md — Windows
+  (&quot;user instructions&quot;)
+  (all projects on this side)"]
+  N2["Claude's own notes — Windows
+  (&quot;auto memory&quot;)
+  (one set per project, on this side only)"]
+end
+
+WSLSIDE <-- "you write it · read at session start" --> W1
+WSLSIDE <-- "it jots notes as it works, incl. “remember this” · read at session start" --> W2
+WSLSIDE <-- "you write it · read at session start" --> S4
+
+WINSIDE <-- "you write it · read at session start" --> N1
+WINSIDE <-- "it jots notes as it works, incl. “remember this” · read at session start" --> N2
+WINSIDE <-- "you write it · read at session start" --> S4
+
+S4 -- "read at session start" --> C5
+C5 -. "can update it by saving changes to the project" .-> S4
+
+C8["Your phone, via Dispatch"]
+
+C8 -. "can send tasks to local Claude Code (observed: Windows side only, not WSL)" .-> WINSIDE
+
+classDef ctx fill:#FFFFFF,stroke:#8A8478,stroke-width:1.2px,color:#3D3A34
+classDef quiet fill:#FDFBF7,stroke:#B7B1A4,stroke-width:1px,color:#6B675E
+classDef acct fill:#EEF3F8,stroke:#4A6B8F,stroke-width:1.2px,color:#3D3A34
+classDef repo fill:#F7F3E8,stroke:#9A6F33,stroke-width:1.2px,color:#3D3A34
+classDef wsl fill:#EFF5F0,stroke:#54805C,stroke-width:1.2px,color:#3D3A34
+classDef win fill:#FBF0EC,stroke:#B06A4F,stroke-width:1.2px,color:#3D3A34
+classDef mac fill:#EDF1F5,stroke:#5B6B7F,stroke-width:1.2px,color:#3D3A34
+classDef cwloc fill:#F6EFF4,stroke:#8F5C82,stroke-width:1.2px,color:#3D3A34
+class K1,K2,K3,K4,K5,C5,C8 ctx
+class S4 repo
+class W1,W2 wsl
+class N1,N2 win
+style WSLSIDE fill:#FCFEFC,stroke:#A9C2AF,stroke-width:1px,color:#54805C
+style WINSIDE fill:#FFFBF9,stroke:#D6A893,stroke-width:1px,color:#B06A4F
+style REPO fill:#FFFEF9,stroke:#C9A36B,stroke-width:1px,color:#9A6F33
+style WSLFS fill:#FCFEFC,stroke:#A9C2AF,stroke-width:1px,color:#54805C
+style WINFS fill:#FFFBF9,stroke:#D6A893,stroke-width:1px,color:#B06A4F

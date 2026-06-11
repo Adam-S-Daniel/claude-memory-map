@@ -1,0 +1,117 @@
+---
+title: "Claude memory map — complete (Mac)"
+---
+flowchart LR
+
+subgraph CHAT["Claude chat — claude.ai, mobile and desktop apps"]
+direction TB
+  C1["Standalone chat"]
+  C2["Chat inside a Project"]
+  C3["Incognito chat
+  (no memory in or out)"]
+end
+
+subgraph ACCT["On your account — online, any device"]
+direction TB
+  S1["Saved facts (&quot;memory edits&quot;)
+  (kept word-for-word)"]
+  S2["Nightly chat summary
+  (&quot;memory summary&quot;)"]
+  S3["Project memory (&quot;project-scoped
+  memory&quot;) — one per Project"]
+end
+
+SET["Settings → Memory page
+(&quot;Manage memory&quot; · home of the
+&quot;Generate memory from chat history&quot; toggle)"]
+
+subgraph CODE["Claude Code"]
+direction TB
+
+  subgraph MACSIDE["runs on your Mac"]
+  direction TB
+    K6["CLI on Mac — Terminal"]
+    K7["VS Code on Mac"]
+  end
+
+  C5["On the web
+  (fresh cloud sandbox per task)"]
+end
+
+subgraph REPO["Saved with the project's files"]
+  S4["Project notes file — CLAUDE.md
+  (&quot;project instructions&quot;)
+  (one per repo/project folder,
+  read by whatever opens it)"]
+end
+
+subgraph MACFS["Mac file system — ~/.claude"]
+direction TB
+  M1["User CLAUDE.md — Mac
+  (&quot;user instructions&quot;)
+  (all projects on this Mac)"]
+  M2["Claude's own notes — Mac
+  (&quot;auto memory&quot;)
+  (one set per project)"]
+end
+
+subgraph CW["Claude Cowork — desktop"]
+direction TB
+  YOU["You, at the desktop"]
+  C8["Your phone, via Dispatch"]
+  C6["Session inside a project"]
+  C7["One-off session (&quot;standalone
+  session&quot;) — keeps nothing afterward"]
+end
+
+subgraph CWLOC["On one computer — Cowork"]
+  S7["Cowork project memory"]
+end
+
+C1 -- "summarized overnight" --> S2
+C1 -- "saying “remember this”" --> S1
+S1 -. "feeds" .-> S2
+S2 -- "loaded into every new standalone chat" --> C1
+S1 --> C1
+C2 <-- "chatting · saying “remember this” · recalled in that Project's chats" --> S3
+S2 -. "displayed here, regenerated nightly · export" .-> SET
+SET -. "your edits · imports" .-> S1
+
+MACSIDE <-- "you write the user file · it jots notes, incl. “remember this” · all read at session start" --> MACFS
+MACSIDE <-- "you write it · read at session start" --> S4
+
+S4 -- "read at session start" --> C5
+C5 -. "can update it by saving changes to the project" .-> S4
+
+C6 <-- "remembers as you work · recalled when you reopen it" --> S7
+YOU -- "work in it directly" --> C6
+YOU --> C7
+C8 -- "sends tasks to run on the desktop" --> C6
+C8 --> C7
+
+CW <-- "you or Claude writes it (e.g. /init) · read at session start" --> S4
+
+C8 -. "can send tasks to local Claude Code" .-> MACSIDE
+
+classDef ctx fill:#FFFFFF,stroke:#8A8478,stroke-width:1.2px,color:#3D3A34
+classDef quiet fill:#FDFBF7,stroke:#B7B1A4,stroke-width:1px,color:#6B675E
+classDef acct fill:#EEF3F8,stroke:#4A6B8F,stroke-width:1.2px,color:#3D3A34
+classDef repo fill:#F7F3E8,stroke:#9A6F33,stroke-width:1.2px,color:#3D3A34
+classDef wsl fill:#EFF5F0,stroke:#54805C,stroke-width:1.2px,color:#3D3A34
+classDef win fill:#FBF0EC,stroke:#B06A4F,stroke-width:1.2px,color:#3D3A34
+classDef mac fill:#EDF1F5,stroke:#5B6B7F,stroke-width:1.2px,color:#3D3A34
+classDef cwloc fill:#F6EFF4,stroke:#8F5C82,stroke-width:1.2px,color:#3D3A34
+class C1,C2,K6,K7,C5,C6,C8,YOU,SET ctx
+class C3,C7 quiet
+class S1,S2,S3 acct
+class S4 repo
+class M1,M2 mac
+class S7 cwloc
+style CHAT fill:#FDFBF7,stroke:#C9C3B6,stroke-width:1px,color:#6B675E
+style CODE fill:#FDFBF7,stroke:#C9C3B6,stroke-width:1px,color:#6B675E
+style CW fill:#FDFBF7,stroke:#C9C3B6,stroke-width:1px,color:#6B675E
+style MACSIDE fill:#FBFCFE,stroke:#9FAEBE,stroke-width:1px,color:#5B6B7F
+style ACCT fill:#FBFDFF,stroke:#A8BBD1,stroke-width:1px,color:#4A6B8F
+style REPO fill:#FFFEF9,stroke:#C9A36B,stroke-width:1px,color:#9A6F33
+style MACFS fill:#FBFCFE,stroke:#9FAEBE,stroke-width:1px,color:#5B6B7F
+style CWLOC fill:#FEFCFE,stroke:#C2A9BB,stroke-width:1px,color:#8F5C82
