@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
-"""Build the interactive memory-map picker v2: checkbox tree -> runtime-composed Mermaid chart."""
-import pathlib
+"""Build the interactive memory-map picker v2: checkbox tree -> runtime-composed Mermaid chart.
+
+This module now exists solely to hold JS_GENERATOR — the single canonical source of the
+Mermaid block generator (compose()). build_picker3.py extracts the JS_GENERATOR string at
+build time; nothing executes this file directly.
+"""
 
 JS_GENERATOR = r'''
 // ---------- canonical text blocks (single source of truth) ----------
@@ -8,8 +12,8 @@ const Q = '&quot;';
 const NODES = {
   C1:  `C1["Chats not inside a Project\n  (${Q}standalone${Q} chats)"]`,
   C2:  `C2["Chats inside a Project"]`,
-  S1:  `S1["Saved facts (${Q}memory edits${Q})\n  (kept word-for-word)"]`,
-  S2:  `S2["Nightly chat summary\n  (${Q}memory summary${Q})"]`,
+  S1:  `S1["Saved facts (${Q}memory edits${Q})\n  (applied immediately, not the daily sync)"]`,
+  S2:  `S2["Chat-history summary\n  (${Q}memory summary${Q})"]`,
   S3:  `S3["Project memory (${Q}project-scoped\n  memory${Q}) — one per Project"]`,
   PRF: `PRF["Instructions for Claude — Settings → Profile\n  (${Q}Instructions${Q} in the app)\n  (kept in mind across chats & Cowork)"]`,
   SET: `SET["Settings → Memory page\n(${Q}Manage memory${Q} · home of the\n${Q}Generate memory from chat history${Q} toggle)"]`,
@@ -31,7 +35,7 @@ const NODES = {
   N1:  `N1["User CLAUDE.md — Windows\n  (${Q}user instructions${Q})\n  (all projects on this side)"]`,
   N2:  `N2["Claude's own notes — Windows\n  (${Q}auto memory${Q})\n  (one set per project, on this side only)"]`,
   M1:  `M1["User CLAUDE.md — Mac\n  (${Q}user instructions${Q})\n  (all projects on this Mac)"]`,
-  M2:  `M2["Claude's own notes — Mac\n  (${Q}auto memory${Q})\n  (one set per project)"]`,
+  M2:  `M2["Claude's own notes — Mac\n  (${Q}auto memory${Q})\n  (one set per project, on this Mac only)"]`,
 };
 
 function s4Node(term){
@@ -42,13 +46,13 @@ const BUNDLED = `you write the user file · it jots notes, incl. \u201Cremember 
 const WRITE_READ = `you write it · read at session start`;
 
 const CHAT_FLOWS_ALL = [
-  ['C1','S2', 'C1 -- "summarized overnight" --> S2'],
+  ['C1','S2', 'C1 -- "synthesized daily" --> S2'],
   ['C1','S1', 'C1 -- "saying \u201Cremember this\u201D" --> S1'],
   ['S1','S2', 'S1 -. "feeds" .-> S2'],
   ['S2','C1', 'S2 -- "loaded into every new standalone chat" --> C1'],
   ['S1','C1', 'S1 --> C1'],
   ['C2','S3', 'C2 <-- "chatting · saying \u201Cremember this\u201D · recalled in that Project\u2019s chats" --> S3'],
-  ['S2','SET','S2 -. "displayed here, regenerated nightly · export" .-> SET'],
+  ['S2','SET','S2 -. "displayed here, refreshed daily · export" .-> SET'],
   ['SET','S1','SET -. "your edits · imports" .-> S1'],
 ];
 
@@ -230,145 +234,3 @@ function compose(sel){
   return { code, hints, empty: present.size === 0 };
 }
 '''
-
-CHECKBOX_TREE = '''
-<div class="grp">Claude chat <span class="grpsub">claude.ai &middot; the Claude mobile app &middot; the Claude Desktop app</span></div>
-<label><input type="checkbox" id="ch_standalone"> Chats not inside a Project (&ldquo;standalone&rdquo; chats)</label>
-<label><input type="checkbox" id="ch_project"> Chats inside a Project</label>
-<label><input type="checkbox" id="ch_incognito"> Incognito chats</label>
-
-<div class="grp">Claude Code</div>
-<div class="sub1lbl">On your Mac</div>
-  <div class="sub2lbl">In the Claude Desktop app</div>
-    <label class="i3"><input type="checkbox" id="mac_app_local"> Local sessions</label>
-    <label class="i3"><input type="checkbox" id="mac_app_web"> Claude Code on the web sessions</label>
-  <label class="i2"><input type="checkbox" id="mac_cli"> In the terminal &mdash; the Claude Code CLI (command-line interface)</label>
-  <label class="i2"><input type="checkbox" id="mac_vscode"> In VS Code with the Claude Code extension</label>
-<div class="sub1lbl">On your Windows computer</div>
-  <div class="sub2lbl">In the Claude Desktop app</div>
-    <label class="i3"><input type="checkbox" id="win_app_local"> Local sessions (run on the Windows side)</label>
-    <label class="i3"><input type="checkbox" id="win_app_web"> Claude Code on the web sessions</label>
-    <label class="i3"><input type="checkbox" id="win_app_rc_wsl"> Remote-controlling a CLI session running in WSL (Remote Control, /rc)</label>
-  <div class="sub2lbl">In the terminal &mdash; the Claude Code CLI (command-line interface)</div>
-    <label class="i3"><input type="checkbox" id="win_cli_native"> Native Windows</label>
-    <label class="i3"><input type="checkbox" id="win_cli_wsl"> In WSL</label>
-  <div class="sub2lbl">In VS Code with the Claude Code extension</div>
-    <label class="i3"><input type="checkbox" id="win_vscode_wsl"> Connected to WSL (with the &ldquo;WSL&rdquo; extension, formerly &ldquo;Remote - WSL&rdquo;)</label>
-    <label class="i3"><input type="checkbox" id="win_vscode_local"> Local &mdash; not WSL</label>
-<label><input type="checkbox" id="code_web"> On the web &mdash; claude.ai/code in any browser</label>
-<label><input type="checkbox" id="code_rc"> From your phone or browser &mdash; Remote Control of a running session</label>
-
-<div class="grp">Claude Cowork <span class="grpsub">runs via the Claude Desktop app</span></div>
-<label><input type="checkbox" id="cw_desktop"> At your desktop, in the Claude Desktop app</label>
-<label><input type="checkbox" id="cw_dispatch"> From your phone, via Dispatch (requires the Claude mobile app)</label>
-<label><input type="checkbox" id="cw_project"> Sessions inside a project</label>
-<label><input type="checkbox" id="cw_standalone"> Standalone sessions</label>
-
-<p class="fine">Notes: a Cowork project is not the same thing as a project on claude.ai. Standalone Cowork sessions can also &ldquo;Work in a Folder&rdquo; &mdash; what a project adds is the bundle of folders, standing instructions, and a dedicated memory store. Dispatch from a phone requires the Claude mobile app (a phone browser isn&rsquo;t a documented path). The Desktop app can also host sessions inside WSL via its SSH feature (niche; not mapped here).</p>
-'''
-
-HTML = '''<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Which ways do you use Claude?</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/mermaid/11.12.0/mermaid.min.js"></script>
-<style>
-  :root { --paper:#FDFBF7; --ink:#3D3A34; --muted:#6B675E; --line:#E4DFD4;
-          --blue:#4A6B8F; --amber:#9A6F33; }
-  * { box-sizing:border-box; margin:0; padding:0; }
-  body { background:var(--paper); color:var(--ink);
-         font-family:Helvetica, Arial, sans-serif; padding:32px 20px 60px; }
-  .wrap { max-width:1100px; margin:0 auto; }
-  h1 { font-family:Georgia, 'Times New Roman', serif; font-size:30px; font-weight:normal; }
-  .sub { color:var(--muted); margin:10px 0 22px; font-size:15px; }
-  .grp { font-size:12px; letter-spacing:1.5px; color:var(--amber);
-         margin:24px 0 8px; text-transform:uppercase; }
-  .grpsub { letter-spacing:0; text-transform:none; color:var(--muted); font-size:12px; }
-  .sub1lbl { font-size:14px; color:var(--ink); margin:10px 0 4px 14px; font-weight:bold; }
-  .sub2lbl { font-size:13.5px; color:var(--muted); margin:8px 0 3px 32px; font-style:italic; }
-  label { display:block; font-size:14.5px; margin:5px 0 5px 14px; cursor:pointer; }
-  label.i2 { margin-left:32px; }
-  label.i3 { margin-left:52px; }
-  input[type=checkbox] { accent-color:var(--blue); margin-right:7px; transform:scale(1.1); }
-  .fine { font-size:12px; color:var(--muted); font-style:italic; margin:18px 0 0 14px; max-width:760px; }
-  button.go { margin-top:26px; border:1.2px solid var(--blue); border-radius:10px;
-              background:#EEF3F8; color:var(--ink); font-size:15px;
-              padding:11px 22px; cursor:pointer; }
-  #result { display:none; }
-  #result h2 { font-family:Georgia, serif; font-weight:normal; font-size:22px; margin-bottom:6px; }
-  .bar { display:flex; gap:14px; align-items:center; margin:14px 0 12px; flex-wrap:wrap; }
-  .bar a { color:var(--blue); font-size:13.5px; cursor:pointer; text-decoration:underline; }
-  #hints { font-size:13px; color:var(--amber); margin-bottom:10px; }
-  #hints div { margin:3px 0; }
-  #diagram { background:#FFFFFF; border:1px solid var(--line); border-radius:12px;
-             padding:14px; overflow:auto; }
-  #diagram svg { max-width:none !important; }
-  .err { color:#A0552F; }
-</style>
-</head>
-<body>
-<div class="wrap">
-  <div id="quiz">
-    <h1>Which ways do you use Claude?</h1>
-    <p class="sub">Check every context you use &mdash; the map is composed from your selection. Claude keeps separate memories in different places; this shows what gets in, where it lives, and how it comes back out.</p>
-__TREE__
-    <button class="go" id="go">Show my map</button>
-    <p class="fine" id="emptymsg" style="display:none; color:#A0552F">Check at least one box first.</p>
-  </div>
-
-  <div id="result">
-    <h2>Claude memory map &mdash; your selection</h2>
-    <div class="bar"><a id="back">&larr; Change selection</a></div>
-    <div id="hints"></div>
-    <div id="diagram"></div>
-  </div>
-</div>
-
-<script>
-window.addEventListener('error', e => {
-  const d = document.getElementById('diagram');
-  if (d) d.insertAdjacentHTML('afterbegin', '<p class="err">Page error: '+(e.message||'unknown')+'</p>');
-});
-__GENERATOR__
-const MERMAID_OK = typeof mermaid !== 'undefined';
-if (MERMAID_OK) mermaid.initialize({ startOnLoad:false, securityLevel:'loose', theme:'neutral',
-                                     flowchart:{ useMaxWidth:false } });
-let renderCount = 0;
-const $ = id => document.getElementById(id);
-const IDS = ['ch_standalone','ch_project','ch_incognito',
-  'win_app_local','win_app_web','win_app_rc_wsl','win_cli_native','win_cli_wsl',
-  'win_vscode_wsl','win_vscode_local','code_web','code_rc',
-  'cw_desktop','cw_dispatch','cw_project','cw_standalone'];
-
-$('go').addEventListener('click', async () => {
-  const sel = {}; IDS.forEach(i => sel[i] = $(i).checked);
-  const { code, hints, empty } = compose(sel);
-  if (empty){ $('emptymsg').style.display='block'; return; }
-  $('emptymsg').style.display='none';
-  $('quiz').style.display='none'; $('result').style.display='block';
-  $('hints').innerHTML = hints.map(h => '<div>&#9432; '+h+'</div>').join('');
-  if (!MERMAID_OK){
-    $('diagram').innerHTML = '<p class="err">The diagram renderer (mermaid, from cdnjs.cloudflare.com) failed to load. Check the console/network for the script request, then reload.</p>'
-      + '<details style="margin-top:10px"><summary style="cursor:pointer;color:#4A6B8F">Show this map&rsquo;s Mermaid source instead</summary><pre style="white-space:pre-wrap;font-size:12px;margin-top:8px">'
-      + code.replace(/&/g,'&amp;').replace(/</g,'&lt;') + '</pre></details>';
-    return;
-  }
-  $('diagram').innerHTML = '<span style="color:#6B675E">Rendering&hellip;</span>';
-  try{
-    const { svg } = await mermaid.render('m'+(++renderCount), code);
-    $('diagram').innerHTML = svg;
-  }catch(err){
-    $('diagram').innerHTML = '<p class="err">Could not render: '+err.message+'</p><pre style="white-space:pre-wrap;font-size:11px">'+code.replace(/&/g,'&amp;').replace(/</g,'&lt;')+'</pre>';
-  }
-});
-$('back').addEventListener('click', () => { $('result').style.display='none'; $('quiz').style.display='block'; });
-</script>
-</body>
-</html>
-'''
-
-html = HTML.replace('__TREE__', CHECKBOX_TREE).replace('__GENERATOR__', JS_GENERATOR)
-pathlib.Path('/mnt/user-data/outputs/claude-memory-map-picker.html').write_text(html)
-print('picker v2 written:', len(html), 'bytes')

@@ -13,7 +13,7 @@
 
 ## Features
 
-- **Live composition** — every node/edge is generated at render time from your checkbox selection (~2M permutations from one canonical block set; no pre-rendered variants)
+- **Live composition** — every node/edge is generated at render time from your checkbox selection (~2M permutations from one canonical block set)
 - **Sync summary** — above the chart: which stores are *in sync across your selection* vs *kept separate*, with per-store context coverage
 - **Scope lens** — "I'm interested in" filters to memory remembered across projects/repos, within one, or both; contexts that can't support the chosen scope disable with an inline explanation
 - **Brief/Full labels** — compact names with a legend, or self-contained descriptions, toggleable
@@ -29,10 +29,13 @@ src/
   build_picker2.py    canonical Mermaid block generator (extracted at build time)
   generate_suite.py   builds the 8 static curated diagrams in suite/
 tests/
-  tests_picker.js     71-test puppeteer e2e suite (developed red/green TDD)
+  tests_picker.js     71-test puppeteer e2e suite
 scripts/
   dev-server.js       zero-dep dev server: serve + live-reload + auto-rebuild
-suite/                static curated diagram variants (.mermaid sources)
+suite/                .mermaid sources for those diagrams — a fuller reference set
+                      that intentionally includes contexts the interactive picker omits
+                      (incognito chats, Dispatch) and some earlier labels. index.html
+                      is the current source of truth for terminology and coverage.
 ```
 
 ## Build & test
@@ -52,7 +55,7 @@ The test harness runs serverless Chromium in CI (`@sparticuz/chromium` at `/tmp/
 ```bash
 npm install
 npm run setup:browser    # downloads Chrome-for-Testing into ~/.cache/puppeteer (Linux/WSL)
-npm test                 # auto-detects that Chrome; falls back to CHROMIUM_PATH if set
+npm test                 # uses that Chrome automatically
 ```
 
 **Run the suite (local):** `npm test` resolves a browser in this order — `CHROMIUM_PATH` → newest Chrome under `~/.cache/puppeteer` → `/tmp/chromium` (CI). To watch it drive the UI:

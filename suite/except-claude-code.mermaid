@@ -14,8 +14,8 @@ end
 subgraph ACCT["On your account — online, any device"]
 direction TB
   S1["Saved facts (&quot;memory edits&quot;)
-  (kept word-for-word)"]
-  S2["Nightly chat summary
+  (applied immediately, not the daily sync)"]
+  S2["Chat-history summary
   (&quot;memory summary&quot;)"]
   S3["Project memory (&quot;project-scoped
   memory&quot;) — one per Project"]
@@ -45,13 +45,13 @@ subgraph REPO["Saved with the project's files"]
   read by whatever opens it)"]
 end
 
-C1 -- "summarized overnight" --> S2
+C1 -- "synthesized daily" --> S2
 C1 -- "saying “remember this”" --> S1
 S1 -. "feeds" .-> S2
 S2 -- "loaded into every new standalone chat" --> C1
 S1 --> C1
 C2 <-- "chatting · saying “remember this” · recalled in that Project's chats" --> S3
-S2 -. "displayed here, regenerated nightly · export" .-> SET
+S2 -. "displayed here, refreshed daily · export" .-> SET
 SET -. "your edits · imports" .-> S1
 
 C6 <-- "remembers as you work · recalled when you reopen it" --> S7

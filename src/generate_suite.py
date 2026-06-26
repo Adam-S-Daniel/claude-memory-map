@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Generate the Claude memory map suite from shared blocks (single source of truth)."""
-import json, re, pathlib
+import re, pathlib
 
 Q = '&quot;'
 
@@ -16,8 +16,8 @@ end'''
 ACCT = f'''subgraph ACCT["On your account — online, any device"]
 direction TB
   S1["Saved facts ({Q}memory edits{Q})
-  (kept word-for-word)"]
-  S2["Nightly chat summary
+  (applied immediately, not the daily sync)"]
+  S2["Chat-history summary
   ({Q}memory summary{Q})"]
   S3["Project memory ({Q}project-scoped
   memory{Q}) — one per Project"]
@@ -27,13 +27,13 @@ SET = f'''SET["Settings → Memory page
 ({Q}Manage memory{Q} · home of the
 {Q}Generate memory from chat history{Q} toggle)"]'''
 
-CHAT_FLOWS = '''C1 -- "summarized overnight" --> S2
+CHAT_FLOWS = '''C1 -- "synthesized daily" --> S2
 C1 -- "saying “remember this”" --> S1
 S1 -. "feeds" .-> S2
 S2 -- "loaded into every new standalone chat" --> C1
 S1 --> C1
 C2 <-- "chatting · saying “remember this” · recalled in that Project's chats" --> S3
-S2 -. "displayed here, regenerated nightly · export" .-> SET
+S2 -. "displayed here, refreshed daily · export" .-> SET
 SET -. "your edits · imports" .-> S1'''
 
 CW_CTX = f'''subgraph CW["Claude Cowork — desktop"]
@@ -242,16 +242,8 @@ variants['complete-all'] = assemble('Claude memory map — complete (all platfor
      CHAT_FLOWS, bundled_flows('WSLSIDE','WSLFS'), bundled_flows('WINSIDE','WINFS'),
      bundled_flows('MACSIDE','MACFS'), WEB_FLOWS, CW_FLOWS, COWORK_MD, DISP_WIN, DISP_MAC])
 
-outdir = pathlib.Path('/home/claude/mermaid-render/suite')
-outdir.mkdir(exist_ok=True)
+outdir = pathlib.Path(__file__).resolve().parent.parent / 'suite'
+outdir.mkdir(parents=True, exist_ok=True)
 for name, src in variants.items():
     (outdir / f'{name}.mermaid').write_text(src)
     print('wrote', name)
-
-# manifest for the HTML builder
-manifest = {}
-for name, src in variants.items():
-    m = re.match(r'---\ntitle: "(.*?)"\n(?:config:.*?)?---\n(.*)', src, re.S)
-    manifest[name] = {'title': m.group(1), 'code': m.group(2)}
-(outdir / 'manifest.json').write_text(json.dumps(manifest))
-print('manifest written')

@@ -237,8 +237,8 @@ const Q = '&quot;';
 const NODES = {
   C1:  `C1["Chats not inside a Project\n  (${Q}standalone${Q} chats)"]`,
   C2:  `C2["Chats inside a Project"]`,
-  S1:  `S1["Saved facts (${Q}memory edits${Q})\n  (kept word-for-word)"]`,
-  S2:  `S2["Nightly chat summary\n  (${Q}memory summary${Q})"]`,
+  S1:  `S1["Saved facts (${Q}memory edits${Q})\n  (applied immediately, not the daily sync)"]`,
+  S2:  `S2["Chat-history summary\n  (${Q}memory summary${Q})"]`,
   S3:  `S3["Project memory (${Q}project-scoped\n  memory${Q}) — one per Project"]`,
   PRF: `PRF["Instructions for Claude — Settings → Profile\n  (${Q}Instructions${Q} in the app)\n  (kept in mind across chats & Cowork)"]`,
   SET: `SET["Settings → Memory page\n(${Q}Manage memory${Q} · home of the\n${Q}Generate memory from chat history${Q} toggle)"]`,
@@ -260,7 +260,7 @@ const NODES = {
   N1:  `N1["User CLAUDE.md — Windows\n  (${Q}user instructions${Q})\n  (all projects on this side)"]`,
   N2:  `N2["Claude's own notes — Windows\n  (${Q}auto memory${Q})\n  (one set per project, on this side only)"]`,
   M1:  `M1["User CLAUDE.md — Mac\n  (${Q}user instructions${Q})\n  (all projects on this Mac)"]`,
-  M2:  `M2["Claude's own notes — Mac\n  (${Q}auto memory${Q})\n  (one set per project)"]`,
+  M2:  `M2["Claude's own notes — Mac\n  (${Q}auto memory${Q})\n  (one set per project, on this Mac only)"]`,
 };
 
 function s4Node(term){
@@ -271,13 +271,13 @@ const BUNDLED = `you write the user file · it jots notes, incl. \u201Cremember 
 const WRITE_READ = `you write it · read at session start`;
 
 const CHAT_FLOWS_ALL = [
-  ['C1','S2', 'C1 -- "summarized overnight" --> S2'],
+  ['C1','S2', 'C1 -- "synthesized daily" --> S2'],
   ['C1','S1', 'C1 -- "saying \u201Cremember this\u201D" --> S1'],
   ['S1','S2', 'S1 -. "feeds" .-> S2'],
   ['S2','C1', 'S2 -- "loaded into every new standalone chat" --> C1'],
   ['S1','C1', 'S1 --> C1'],
   ['C2','S3', 'C2 <-- "chatting · saying \u201Cremember this\u201D · recalled in that Project\u2019s chats" --> S3'],
-  ['S2','SET','S2 -. "displayed here, regenerated nightly · export" .-> SET'],
+  ['S2','SET','S2 -. "displayed here, refreshed daily · export" .-> SET'],
   ['SET','S1','SET -. "your edits · imports" .-> S1'],
 ];
 
@@ -469,7 +469,7 @@ const IDS = ['ch_standalone','ch_project',
   'win_vscode_wsl','win_vscode_local','code_web',
   'cw_desktop','cw_project','cw_standalone'];
 
-const EMPTY_HTML = '<div class="emptystate"><b>Nothing mapped yet.</b>Check a context on the left and what Claude remembers there appears here. Add more and watch the stores and flows connect.</div>';
+const EMPTY_HTML = '<div class="emptystate"><b>Nothing mapped yet.</b>Check a context on the left to see what Claude remembers there. Add more and watch the stores and flows connect.</div>';
 
 let renderCount = 0, timer = null, renderSeq = 0;
 
@@ -590,8 +590,8 @@ const STORE_BRIEF = {
   cwmem:'Cowork memory',
 };
 const STORE_FULL = {
-  chatmem:'Memory from chat history: nightly chat summary + saved facts, spanning every standalone chat',
-  prefs:'Instructions for Claude (Settings \u2192 Profile; \u201CInstructions\u201D in the app): free-text standing instructions kept in mind across chats and Cowork',
+  chatmem:'Memory from chat history: chat-history summary (refreshed daily) + saved facts, spanning every standalone chat',
+  prefs:'Instructions for Claude (Settings → Profile; “Instructions” in the app): free-text standing instructions kept in mind across chats and Cowork',
   projmem:'Project memory: one per claude.ai Project',
   repo:t => 'Project notes file — CLAUDE.md, saved in the '+t,
   macumd:'Mac file system (~/.claude) — user CLAUDE.md: your instructions, all projects on this Mac',
@@ -603,8 +603,8 @@ const STORE_FULL = {
   cwmem:'Cowork project memory: one per Cowork project, on that computer',
 };
 const LEGEND_HTML = '<details class="legend"><summary>Legend</summary><dl>'
-  + '<dt>Memory from chat history</dt><dd>Claude’s account-level memory — the nightly chat summary plus saved facts — applied to every standalone chat on any device. Cross-project.</dd>'
-  + '<dt>Instructions for Claude</dt><dd>The free-text box at Settings \u2192 Profile (labeled \u201CInstructions\u201D in the app). Anthropic: \u201CClaude will keep these in mind across chats and Cowork within Anthropic\u2019s guidelines.\u201D</dd>'
+  + '<dt>Memory from chat history</dt><dd>Claude’s account-level memory — the chat-history summary (refreshed daily) plus saved facts — applied to every standalone chat on any device. Cross-project.</dd>'
+  + '<dt>Instructions for Claude</dt><dd>The free-text box at Settings → Profile (labeled “Instructions” in the app). Anthropic: “Claude will keep these in mind across chats and Cowork within Anthropic’s guidelines.”</dd>'
   + '<dt>Project memory</dt><dd>A separate memory for each claude.ai Project.</dd>'
   + '<dt>CLAUDE.md</dt><dd>The project notes file saved with the repo/project folder, read at session start by whatever opens it.</dd>'
   + '<dt>User CLAUDE.md (Mac / Windows / WSL)</dt><dd>In that side’s <code>~/.claude</code> (Windows: <code>' + WINPATH + '</code>): your instructions for every project on that side. Cross-project, but each side keeps its own file.</dd>'
