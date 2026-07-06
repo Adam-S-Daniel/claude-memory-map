@@ -392,7 +392,7 @@ const LEGEND_HTML = '<details class="legend"><summary>Legend</summary><dl>'
   + '<dt>Project memory</dt><dd>A separate memory for each claude.ai Project.</dd>'
   + '<dt>CLAUDE.md</dt><dd>The project notes file saved with the repo/project folder, read at session start by whatever opens it.</dd>'
   + '<dt>User CLAUDE.md (Mac / Windows / WSL)</dt><dd>In that side\u2019s <code>~/.claude</code> (Windows: <code>' + WINPATH + '</code>): your instructions for every project on that side. Cross-project, but each side keeps its own file.</dd>'
-  + '<dt>Auto memory (Mac / Windows / WSL)</dt><dd>Claude\u2019s own notes (auto memory) in the same folder \u2014 one set per project, per side.</dd>'
+  + '<dt>Auto memory (Mac / Windows / WSL)</dt><dd>Claude\u2019s own notes (auto memory) in the same folder \u2014 one set per project, per side. Relocatable into a repo-tracked folder via the <code>autoMemoryDirectory</code> setting, so it travels with the repo instead of staying machine-local.</dd>'
   + '<dt>Cowork memory</dt><dd>Per-Cowork-project memory, kept on that computer.</dd>'
   + '</dl></details>';
 let labelMode = 'brief';

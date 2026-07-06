@@ -77,6 +77,10 @@ npm run serve            # serve current index.html without the initial build
 
 Open the printed `http://localhost:<port>/` in your browser (on WSL, your Windows browser works — `localhost` is forwarded) and use DevTools (F12). Edit a `src/*.py` builder and save: the server rebuilds `index.html` and the page reloads itself.
 
+## Guides
+
+- [Portable memory across machines](./docs/portable-memory.md) — why auto memory is machine-local by default, and how to make it travel with the repo via `autoMemoryDirectory`.
+
 ## Sourcing conventions
 
 Every store, edge, and term traces to documented vanilla behavior in Anthropic's products. Where official docs and the shipping UI disagreed, the shipping UI won. No user-specific configuration is represented.
