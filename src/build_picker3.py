@@ -50,8 +50,8 @@ TREE = '''
 <label><input type="checkbox" id="code_web"><span class="tick tick-web"></span><span class="lbl">On the web &mdash; <code>claude.ai/code</code> in any browser <span class="scopenote"></span></span></label>
 </details>
 
-<p class="fine">A Cowork session&rsquo;s mode is fixed when it starts &mdash; pick it with the &ldquo;Beta&rdquo; button, or at Settings &rarr; Cowork &rarr; &ldquo;Run new tasks in the cloud.&rdquo; Chat and Cowork now share one Projects list: from a project you can start chats or Cowork sessions, but a project tied to a local folder supports Cowork sessions only, on desktop. Remote sessions reach local folders and tools only while the desktop app is open and connected; remote scheduled tasks can&rsquo;t use local folders or local connectors. Not mapped: Dispatch (the persistent assign-from-anywhere thread) and its memory; Claude Code&rsquo;s nested/per-directory CLAUDE.md files, <code>.claude/rules</code>, and subagent memory; managed-policy files; and organization instructions (Team/Enterprise &mdash; apply across Chat, Cowork, and Code, and outrank your own).</p>
-<p class="fine">Settings &rarr; Profile also holds your name, what Claude should call you, and what best describes your work &mdash; lighter-weight context Claude sees account-wide. The colored tick before each context shows which memory home it touches: <span class="tick tick-mac inlinetick"></span>Mac, <span class="tick tick-win inlinetick"></span>Windows, <span class="tick tick-wsl inlinetick"></span>WSL, <span class="tick tick-web inlinetick"></span>cloud, <span class="tick tick-acct inlinetick"></span>your account, <span class="tick tick-cw inlinetick"></span>Cowork.</p>
+<p class="fine">A Cowork session runs remote or local for its whole life &mdash; you choose at start (the &ldquo;Beta&rdquo; button, or Settings &rarr; Cowork &rarr; &ldquo;Run new tasks in the cloud&rdquo;). Chat and Cowork share one Projects list now; a project tied to a local folder is Cowork-only, desktop-only. A remote session can reach your local folders and tools only while the desktop app is open and connected &mdash; and remote scheduled tasks can&rsquo;t use local folders or local connectors at all. Not on the map: Dispatch (the persistent assign-from-anywhere thread) and its memory; Claude Code&rsquo;s nested per-directory CLAUDE.md files, <code>.claude/rules</code>, and subagent memory; managed-policy files; organization instructions (Team/Enterprise &mdash; they apply across Chat, Cowork, and Code and outrank yours).</p>
+<p class="fine">Settings &rarr; Profile also holds your name, what Claude should call you, and what best describes your work &mdash; lightweight context Claude sees account-wide. The colored tick on each row marks the memory home it touches: <span class="tick tick-mac inlinetick"></span>Mac, <span class="tick tick-win inlinetick"></span>Windows, <span class="tick tick-wsl inlinetick"></span>WSL, <span class="tick tick-web inlinetick"></span>cloud, <span class="tick tick-acct inlinetick"></span>your account, <span class="tick tick-cw inlinetick"></span>Cowork.</p>
 '''
 
 HTML = '''<!DOCTYPE html>
@@ -395,20 +395,20 @@ const STORE_FULL = {
   wslauto:'WSL file system (~/.claude) \u2014 auto memory: Claude\u2019s own notes, one set per project',
   cwmem:'Cowork project memory: one per project — what Claude learns in one project doesn’t carry over to others',
   cwgi:'Global instructions (Settings → Cowork): standing instructions applied to every Cowork session',
-  cwfi:'Folder instructions: kept with a local folder on desktop — you or Claude writes them; Claude can update them during a session',
+  cwfi:'Folder instructions: attached to a local folder on desktop — you or Claude writes them, and Claude can update them mid-session',
 };
 const LEGEND_HTML = '<details class="legend"><summary>Legend</summary><dl>'
-  + '<dt>Memory from chat history</dt><dd>Claude\u2019s account-level memory \u2014 the chat-history summary (refreshed daily) plus saved facts \u2014 applied to every standalone chat on any device. Cross-project.</dd>'
-  + '<dt>Instructions for Claude</dt><dd>The free-text box in claude.ai Settings (\u201cInstructions\u201d in the app). The Settings page describes it: \u201cClaude will keep these in mind across chats and Cowork within Anthropic\u2019s guidelines.\u201d Docs add: account-wide, \u201capplied to all of your conversations.\u201d</dd>'
+  + '<dt>Memory from chat history</dt><dd>Claude\u2019s account-level memory: the chat-history summary (refreshed daily) plus your saved facts (\u201cmemory edits\u201d), loaded into every standalone chat on any device. Cross-project.</dd>'
+  + '<dt>Instructions for Claude</dt><dd>The free-text box in claude.ai Settings (\u201cInstructions\u201d in the app). The Settings page: \u201cClaude will keep these in mind across chats and Cowork within Anthropic\u2019s guidelines.\u201d Docs add: account-wide, \u201capplied to all of your conversations.\u201d</dd>'
   + '<dt>Project memory</dt><dd>A separate memory for each claude.ai Project.</dd>'
   + '<dt>CLAUDE.md</dt><dd>The project notes file saved with the repo, read at session start by whatever opens it.</dd>'
   + '<dt>User CLAUDE.md (Mac / Windows / WSL)</dt><dd>In that side\u2019s <code>~/.claude</code> (Windows: <code>' + WINPATH + '</code>): your instructions for every project on that side. Cross-project, but each side keeps its own file.</dd>'
   + '<dt>Auto memory (Mac / Windows / WSL)</dt><dd>Claude\u2019s own notes (auto memory) in the same folder \u2014 one set per project, per side. Relocatable into a repo-tracked folder via the <code>autoMemoryDirectory</code> setting, so it travels with the repo instead of staying machine-local.</dd>'
-  + '<dt>Cowork project memory</dt><dd>One per Cowork project — Claude learns from tasks in the project and applies it to future tasks there; nothing carries between projects. Desktop projects keep it on that computer; where it lives for remote sessions isn’t documented yet.</dd>'
-  + '<dt>Cowork global instructions</dt><dd>Standing instructions at Settings → Cowork, applied to every Cowork session (docs mention editing them in the desktop app; storage location undocumented).</dd>'
-  + '<dt>Cowork folder instructions</dt><dd>Context attached to a local folder (desktop). You or Claude writes them — Claude can update them during a session. Remote sessions reach them only while the desktop app is open.</dd>'
+  + '<dt>Cowork project memory</dt><dd>One per Cowork project — Claude carries what it learns into future tasks in that project, and nothing into other projects. Desktop projects keep it on that computer; where it lives for remote sessions isn’t documented yet.</dd>'
+  + '<dt>Cowork global instructions</dt><dd>Standing instructions at Settings → Cowork, applied to every Cowork session. (Docs only show editing them in the desktop app; where they’re stored isn’t documented.)</dd>'
+  + '<dt>Cowork folder instructions</dt><dd>Instructions attached to a local folder on desktop. You write them or Claude does — it can update them mid-session. Remote sessions reach them only while the desktop app is open and connected.</dd>'
   + '<dt>Memory is chat-only (for now)</dt><dd>Anthropic: “What Claude remembers about you in chat doesn’t carry into Cowork sessions yet.” Memory from chat history, project memory, and Cowork’s stores are separate worlds today.</dd>'
-  + '<dt>Cowork sessions & delivered files</dt><dd>Remote sessions and the files Claude delivers are saved to your Claude account and reopen on any surface — storage you can revisit, not memory Claude recalls on its own. Working files not delivered are discarded with the session sandbox. Past remote sessions are found by title only.</dd>'
+  + '<dt>Cowork sessions & delivered files</dt><dd>Remote sessions and the files Claude delivers are saved to your Claude account and reopen on any surface — storage you can revisit, not memory Claude recalls on its own. Working files it doesn’t hand back die with the session’s sandbox. Past remote sessions are found by title only.</dd>'
   + '</dl></details>';
 let labelMode = 'brief';
 function storeLabel(s){
@@ -436,7 +436,7 @@ function updateSync(){
     for (const [s, who] of Object.entries(cover))
       (who.length === ctxs.length ? inSync : notSync).push([s, who]);
     if (ctxs.length === 1) notes.push('Only one context selected — nothing to sync across yet.');
-    if (cover.repo) notes.push('CLAUDE.md sync assumes the contexts open the same repo/project folder.');
+    if (cover.repo) notes.push('CLAUDE.md sync assumes the contexts open the same repo.');
     html = '<div class="insync"><b>In sync across your selection:</b>'
       + (inSync.length ? inSync.map(([s]) => item(s)).join('') : ' None') + '</div>'
       + '<div class="notsync"><b>Kept separate:</b>'
