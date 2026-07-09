@@ -43,7 +43,7 @@ Run `/memory` inside a Claude Code session. It lists every CLAUDE.md, rules file
 
 - **Public repos publish their memory.** If `autoMemoryDirectory` points inside a public repo, whatever Claude writes there ships with the next push. Treat memory files like any other repo content — review diffs, never store secrets or PII in them.
 - **Hosted sessions don't sync writes back.** A hosted session reads the committed memory files fine, but anything it writes during that session only becomes durable if something commits it — there's no background sync from a hosted session's memory back into your local checkout.
-- **`CLAUDE_MEMORY_STORES` exists but is undocumented.** The v2.1.172 changelog mentions fixing "memory recall not finding mounted team memory stores (`CLAUDE_MEMORY_STORES`) in remote sessions" — implying a mechanism for mounting shared team memory into remote/hosted sessions. There's no public documentation of it yet. Watch this space.
+- **`CLAUDE_MEMORY_STORES` exists but is undocumented.** The v2.1.172 changelog mentions fixing "memory recall not finding mounted team memory stores (`CLAUDE_MEMORY_STORES`) in remote sessions" — implying a mechanism for mounting shared team memory into remote/hosted sessions. There's no public documentation of it yet. Watch this space. (Update: platform.claude.com now documents a beta "Memory Stores" API — `POST /v1/memory_stores` — a separate, still-undocumented-in-Claude-Code-docs mechanism; whether it's the same thing `CLAUDE_MEMORY_STORES` mounts isn't confirmed.)
 
 ## Migrating existing memory
 

@@ -10,6 +10,7 @@
 - If you work in WSL *and* native Windows, which stores are duplicated?
 - What does Claude Code on the web actually read? (Only the repo's `CLAUDE.md` — nothing cross-repo.)
 - What do standalone chats remember that project chats don't, and vice versa?
+- Why doesn't Claude remember you in Cowork? ("Memory is chat-only" — chat memory doesn't carry into Cowork sessions yet.)
 
 ## Features
 
@@ -17,7 +18,7 @@
 - **Sync summary** — above the chart: which stores are *in sync across your selection* vs *kept separate*, with per-store context coverage
 - **Scope lens** — "I'm interested in" filters to memory remembered across projects/repos, within one, or both; contexts that can't support the chosen scope disable with an inline explanation
 - **Brief/Full labels** — compact names with a legend, or self-contained descriptions, toggleable
-- **Official terminology throughout** — every store carries Anthropic's shipping name (e.g. "Memory from chat history", "Instructions for Claude", "auto memory", "user/project instructions"), with per-context terms (repo vs project folder) adapting to the selection
+- **Official terminology throughout** — every store carries Anthropic's shipping name (e.g. "Memory from chat history", "Instructions for Claude", "auto memory", "user/project instructions", "folder instructions", "global instructions")
 - **Mobile-friendly** — stacked layout, 44px touch targets, sticky sync summary, fit-width default
 
 ## Repository layout
@@ -29,7 +30,7 @@ src/
   build_picker2.py    canonical Mermaid block generator (extracted at build time)
   generate_suite.py   builds the 8 static curated diagrams in suite/
 tests/
-  tests_picker.js     71-test puppeteer e2e suite
+  tests_picker.js     81-test puppeteer e2e suite
 scripts/
   dev-server.js       zero-dep dev server: serve + live-reload + auto-rebuild
 suite/                .mermaid sources for those diagrams — a fuller reference set
@@ -43,7 +44,7 @@ suite/                .mermaid sources for those diagrams — a fuller reference
 ```bash
 python3 src/build_picker3.py     # writes index.html
 npm install                      # puppeteer-core + chromium for tests
-node tests/tests_picker.js       # 71 tests: behavior, mobile, semantics, regressions
+node tests/tests_picker.js       # 81 tests: behavior, mobile, semantics, regressions
 ```
 
 Rendering uses Mermaid 11.12.0 from cdnjs at runtime; the page degrades gracefully (shows the generated Mermaid source) if the CDN is unreachable.

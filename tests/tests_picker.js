@@ -91,7 +91,7 @@ function check(cond, name){
   check(await waitSvg(p), 'D3 svg appears after checking a box (no button press)');
   let t = await diagText(p);
   check(t.includes('standalone'), 'D3b chart reflects selection');
-  await p.click('#cw_project');
+  await p.click('#cw_remote_project');
   await sleep(900);
   t = await diagText(p);
   check(t.includes('Cowork'), 'D4 chart live-updates when another box is checked');
@@ -100,16 +100,17 @@ function check(cond, name){
   t = await diagText(p);
   check(!t.includes('Manage memory'), 'D5 chart live-updates on uncheck');
 
-  console.log('D6: live hints');
+  console.log('D6: live cowork/chat interplay');
   await p.close(); p = await freshPage(DESKTOP);
-  await p.click('#cw_desktop');
+  await p.click('#cw_remote_project'); await p.click('#ch_standalone');
   await sleep(900);
-  const hints = await p.$eval('#hints', el => el.textContent).catch(()=> '');
-  check(hints.includes('session type'), 'D6 cowork-entry-without-session hint appears live');
+  t = await diagText(p);
+  check(/chat-only/i.test(t) && !t.includes('Could not render'),
+        'D6 chat+remote-cowork selection renders the chat-only note (no render error)');
 
   console.log('D7-D8: clear-all and live count');
   await p.close(); p = await freshPage(DESKTOP);
-  await p.click('#ch_standalone'); await p.click('#cw_project');
+  await p.click('#ch_standalone'); await p.click('#cw_remote_project');
   await sleep(900);
   const countTxt = await p.$eval('#selcount', el => el.textContent).catch(()=> '');
   check(/2/.test(countTxt), 'D8 selection count shows 2');
@@ -181,13 +182,14 @@ function check(cond, name){
         'R1 client-only desktop app keeps Windows home out');
   await p.close();
   p = await freshPage(DESKTOP);
-  await p.click('#cw_project'); await p.click('#win_cli_native');
+  await p.click('#cw_local_noproj'); await p.click('#win_cli_native');
   await sleep(900); t = await diagText(p);
-  check(t.includes('repo/project folder') && t.includes('/init'),
-        'R2 slash term + cowork CLAUDE.md edge');
-  check(await p.evaluate(() => !document.getElementById('cw_dispatch')), 'R2b Dispatch checkbox removed');
-  check((await p.$eval('.cnt[data-grp="cw"]', el => el.textContent)).includes('of 3'),
-        'R2c Cowork badge counts 3');
+  check(t.includes('Folder instructions') && t.includes('CLAUDE.md') && !t.includes('repo/project folder'),
+        'R2 folder instructions + repo-only CLAUDE.md term');
+  check(await p.evaluate(() => !document.getElementById('cw_desktop') && !document.getElementById('cw_standalone')),
+        'R2b old Cowork checkboxes removed');
+  check((await p.$eval('.cnt[data-grp="cw"]', el => el.textContent)).includes('of 4'),
+        'R2c Cowork badge counts 4');
   await p.close();
   p = await freshPage(DESKTOP, true);
   await p.click('#ch_standalone'); await sleep(1500);
@@ -205,9 +207,10 @@ function check(cond, name){
   check(await p.$eval('#win_app_rc_wsl', el => !el.checked), 'N1b unchecking the host unchecks dependent RC box');
   const gone = await p.evaluate(() => !document.getElementById('mac_app_rc'));
   check(gone, 'N1c Mac remote-control checkbox removed');
-  const cwLabel = await p.evaluate(() =>
-    [...document.querySelectorAll('label .lbl')].some(l => l.textContent.trim() === 'In the Claude Desktop app'));
-  check(cwLabel, 'N1d Cowork entry label has no At-your-desktop prefix');
+  const cwSubgrps = await p.evaluate(() =>
+    [...document.querySelectorAll('.card[data-tint="cw"] .subgrp')].map(el => el.textContent));
+  check(cwSubgrps.some(t => t.includes('Remote sessions')) && cwSubgrps.some(t => t.includes('Local sessions')),
+        'N1d Cowork card has Remote sessions and Local sessions subgroups');
   await p.close();
 
   console.log('N2: live sync summary above the chart');
@@ -261,9 +264,11 @@ function check(cond, name){
   await p.click('#labelmode'); await sleep(400);
   txt = await p.$eval('#syncdesk .insync', el => el.textContent);
   check(txt.includes('CLAUDE.md (repo)'), 'L4a repo term in brief label (code-only)');
-  await p.click('#cw_project'); await sleep(900);
+  await p.click('#cw_local_project'); await sleep(900);
   txt = await p.$eval('#syncdesk', el => el.textContent);
-  check(txt.includes('CLAUDE.md (repo/project folder)'), 'L4b slash term when Cowork joins');
+  check(txt.includes('CLAUDE.md (repo)') && !txt.includes('CLAUDE.md (repo/project folder)')
+        && txt.includes('Cowork folder instructions'),
+        'L4b adding Cowork keeps the repo-only term and lists Cowork folder instructions');
   await p.click('#win_cli_native'); await sleep(900);   // a Windows-home context so winhome is listed
   await p.click('#labelmode'); await sleep(300);
   txt = await p.$eval('#syncdesk', el => el.textContent);
@@ -326,9 +331,10 @@ function check(cond, name){
   check(ptxt.includes('Instructions for Claude'), 'P3 chart shows the Instructions-for-Claude store');
   await p.close();
   p = await freshPage(DESKTOP);
-  await p.click('#cw_standalone'); await sleep(900);
+  await p.click('#cw_remote_noproj'); await sleep(900);
   pitems = await p.$$eval('#syncdesk .syncitem', els => els.map(e => e.textContent).join('|'));
-  check(pitems.includes('Instructions for Claude'), 'P2 Cowork sessions also receive Instructions for Claude');
+  check(pitems.includes('Instructions for Claude') && pitems.includes('Cowork global instructions'),
+        'P2 Cowork sessions also receive Instructions for Claude and Cowork global instructions');
   const trm = await p.evaluate(() => ({
     h2: document.querySelector('.canvasbar h2').textContent,
     opts: [...document.querySelectorAll('#scope option')].map(o => o.textContent).join('|'),
@@ -344,7 +350,7 @@ function check(cond, name){
   let etxt = await p.$eval('#syncdesk', el => el.textContent);
   check(!etxt.includes('call you') && etxt.includes('keep these in mind'),
         'E1 legend quotes the official description, fields demoted');
-  const foot = await p.$eval('.fine', el => el.textContent);
+  const foot = await p.$$eval('.fine', els => els.map(e => e.textContent).join(' '));
   check(foot.includes('call you') && foot.includes('describes your work'),
         'E1b lightweight Profile fields live in the footnote');
   let echart = await diagText(p);
@@ -387,6 +393,61 @@ function check(cond, name){
   check(!sc.disabled && sc.dimmed, 'SC4 a checked box stays operable when scope turns against it');
   await p.click('#code_web'); await sleep(400);
   check(await p.$eval('#code_web', el => el.disabled), 'SC4b once unchecked it disables');
+  await p.close();
+
+  console.log('CW: Cowork remote/local split + chat-only note');
+  p = await freshPage(DESKTOP);
+  await p.click('#ch_standalone'); await p.click('#cw_remote_project'); await sleep(900);
+  t = await diagText(p);
+  check(/chat-only/i.test(t) && t.includes('Cowork'), 'CW1a chat + remote Cowork project renders the chat-only headline');
+  let cwSync = await p.$eval('#syncdesk', el => el.textContent);
+  check(cwSync.includes('Memory is chat-only'), 'CW1b sync notes cite the chat-only line');
+  await p.close();
+
+  p = await freshPage(DESKTOP);
+  await p.click('#cw_remote_noproj'); await sleep(900);
+  t = await diagText(p);
+  check(t.includes("Anthropic's servers") && t.includes('files Claude delivers'),
+        'CW2a remote-noproj diagram names Anthropic’s servers and delivered files');
+  let cwItems = await p.$$eval('#syncdesk .syncitem', els => els.map(e => e.textContent).join('|'));
+  check(cwItems.includes('Cowork global instructions'), 'CW2b remote-noproj sync lists Cowork global instructions');
+  await p.close();
+
+  p = await freshPage(DESKTOP);
+  await p.click('#cw_local_project'); await sleep(900);
+  t = await diagText(p);
+  check(t.includes('On one computer — Cowork'), 'CW3a local project memory sits in the on-one-computer group');
+  await p.click('#cw_remote_project'); await sleep(900);
+  t = await diagText(p);
+  check(!t.includes('On one computer — Cowork') && t.includes('not yet documented'),
+        'CW3b adding a remote project makes project memory bare and undocumented for remote');
+  await p.close();
+
+  p = await freshPage(DESKTOP);
+  await setScope(p, 'within');
+  const cw4 = await p.evaluate(() => ({
+    disabled: document.getElementById('cw_remote_noproj').disabled,
+    note: document.getElementById('cw_remote_noproj').closest('label').querySelector('.scopenote').textContent,
+  }));
+  check(cw4.disabled && cw4.note.length > 0, 'CW4a within-scope disables remote-noproj with a scopenote');
+  await setScope(p, 'across');
+  const cw4b = await p.evaluate(() => ['cw_remote_project','cw_remote_noproj','cw_local_project','cw_local_noproj']
+    .every(id => !document.getElementById(id).disabled));
+  check(cw4b, 'CW4b across-scope leaves all cw contexts enabled');
+  await p.close();
+
+  p = await freshPage(DESKTOP);
+  await p.click('#ch_standalone'); await p.click('#cw_remote_noproj'); await sleep(900);
+  const cwLegend = await p.$eval('#syncdesk', el => el.textContent);
+  check(cwLegend.includes('chat-only'), 'CW5 legend mentions memory being chat-only');
+  await p.close();
+
+  console.log('SETX: chat memory Settings node correction');
+  p = await freshPage(DESKTOP);
+  await p.click('#ch_standalone'); await sleep(900);
+  t = await diagText(p);
+  check(t.includes('Capabilities') && !t.includes('Settings → Memory page'),
+        'SETX chat-memory Settings node points at Capabilities, not the old Memory page');
   await p.close();
 
   console.log('C: collapsible sections with X-of-Y badges');
