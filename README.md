@@ -1,23 +1,24 @@
 # Claude Memory Map
 
-**What Claude remembers — an interactive map.** Check the ways you use Claude (chat, Claude Code, Cowork) and watch a diagram of every memory store assemble live: what gets in, where it lives, and how it comes back out.
+**What Claude remembers — an interactive map.** Check the ways you use Claude (chat, Claude Code, Cowork) and a diagram of every memory store assembles live: what gets in, where it lives, and how it comes back out.
 
-**[Open the picker → `index.html`](./index.html)** (single self-contained file; works from a local clone or GitHub Pages)
+**[Open the picker → `index.html`](./index.html)** (one self-contained file; works from a local clone or GitHub Pages)
 
 ## What it answers
 
-- Which memories follow you across projects/repos, and which stay siloed per project?
-- If you work in WSL *and* native Windows, which stores are duplicated?
-- What does Claude Code on the web actually read? (Only the repo's `CLAUDE.md` — nothing cross-repo.)
-- What do standalone chats remember that project chats don't, and vice versa?
+- Which memories follow you across projects and repos, and which stay siloed in one?
+- Work in WSL *and* native Windows — which stores are you keeping twice?
+- What does Claude Code on the web actually read? (The repo's `CLAUDE.md`. Nothing cross-repo.)
+- What do standalone chats remember that project chats don't — and vice versa?
+- Why doesn't Cowork know what chat knows? (Anthropic: "Memory is chat-only. What Claude remembers about you in chat doesn't carry into Cowork sessions yet.")
 
 ## Features
 
-- **Live composition** — every node/edge is generated at render time from your checkbox selection (~2M permutations from one canonical block set)
-- **Sync summary** — above the chart: which stores are *in sync across your selection* vs *kept separate*, with per-store context coverage
-- **Scope lens** — "I'm interested in" filters to memory remembered across projects/repos, within one, or both; contexts that can't support the chosen scope disable with an inline explanation
-- **Brief/Full labels** — compact names with a legend, or self-contained descriptions, toggleable
-- **Official terminology throughout** — every store carries Anthropic's shipping name (e.g. "Memory from chat history", "Instructions for Claude", "auto memory", "user/project instructions"), with per-context terms (repo vs project folder) adapting to the selection
+- **Live composition** — every node and edge is generated at render time from your selection: ~2M possible maps from one canonical block set
+- **Sync summary** — above the chart: which stores are in sync across your selection, which are kept separate, and who has what
+- **Scope lens** — filter to memory that crosses projects/repos, stays within one, or both; contexts that can't support the chosen scope disable themselves and say why
+- **Brief/Full labels** — compact names with a legend, or self-contained descriptions
+- **Official terminology throughout** — every store carries Anthropic's shipping name ("Memory from chat history", "Instructions for Claude", "auto memory", "folder instructions", "global instructions"…)
 - **Mobile-friendly** — stacked layout, 44px touch targets, sticky sync summary, fit-width default
 
 ## Repository layout
@@ -29,13 +30,13 @@ src/
   build_picker2.py    canonical Mermaid block generator (extracted at build time)
   generate_suite.py   builds the 8 static curated diagrams in suite/
 tests/
-  tests_picker.js     71-test puppeteer e2e suite
+  tests_picker.js     81-test puppeteer e2e suite
 scripts/
   dev-server.js       zero-dep dev server: serve + live-reload + auto-rebuild
 suite/                .mermaid sources for those diagrams — a fuller reference set
-                      that intentionally includes contexts the interactive picker omits
-                      (incognito chats, Dispatch) and some earlier labels. index.html
-                      is the current source of truth for terminology and coverage.
+                      that keeps contexts the picker omits (incognito chats,
+                      Dispatch) and some earlier labels. index.html is the
+                      source of truth for terminology and coverage.
 ```
 
 ## Build & test
@@ -43,39 +44,39 @@ suite/                .mermaid sources for those diagrams — a fuller reference
 ```bash
 python3 src/build_picker3.py     # writes index.html
 npm install                      # puppeteer-core + chromium for tests
-node tests/tests_picker.js       # 71 tests: behavior, mobile, semantics, regressions
+node tests/tests_picker.js       # 81 tests: behavior, mobile, semantics, regressions
 ```
 
-Rendering uses Mermaid 11.12.0 from cdnjs at runtime; the page degrades gracefully (shows the generated Mermaid source) if the CDN is unreachable.
+Rendering uses Mermaid 11.12.0 from cdnjs at runtime; if the CDN is unreachable the page degrades gracefully and shows the generated Mermaid source instead.
 
 ## Local development & debugging
 
-The test harness runs serverless Chromium in CI (`@sparticuz/chromium` at `/tmp/chromium`). For local work it auto-detects a desktop Chrome, so a one-time browser install is all that's needed:
+CI runs serverless Chromium (`@sparticuz/chromium` at `/tmp/chromium`). Locally the harness auto-detects a desktop Chrome, so a one-time install is all you need:
 
 ```bash
 npm install
-npm run setup:browser    # downloads Chrome-for-Testing into ~/.cache/puppeteer (Linux/WSL)
-npm test                 # uses that Chrome automatically
+npm run setup:browser    # Chrome-for-Testing into ~/.cache/puppeteer (Linux/WSL)
+npm test
 ```
 
-**Run the suite (local):** `npm test` resolves a browser in this order — `CHROMIUM_PATH` → newest Chrome under `~/.cache/puppeteer` → `/tmp/chromium` (CI). To watch it drive the UI:
+**Run the suite:** `npm test` picks a browser in this order — `CHROMIUM_PATH` → newest Chrome under `~/.cache/puppeteer` → `/tmp/chromium` (CI). To watch it drive the UI:
 
 ```bash
 npm run test:headed      # visible browser window
-npm run test:debug       # visible + DevTools open + 150ms SLOWMO per step
-# or ad hoc:  HEADED=1 DEVTOOLS=1 SLOWMO=200 node tests/tests_picker.js
-#             CHROMIUM_PATH=/path/to/chrome node tests/tests_picker.js
+npm run test:debug       # visible + DevTools + 150ms slow-mo per step
+# ad hoc:  HEADED=1 DEVTOOLS=1 SLOWMO=200 node tests/tests_picker.js
+#          CHROMIUM_PATH=/path/to/chrome node tests/tests_picker.js
 ```
 
-**Interactively debug `index.html`:** a zero-dependency dev server serves the page over HTTP (real origin, not `file://`), live-reloads on rebuild, and re-runs the Python build whenever `src/*.py` changes:
+**Debug the page:** a zero-dependency dev server serves `index.html` over HTTP (a real origin, not `file://`), re-runs the Python build whenever `src/*.py` changes, and live-reloads:
 
 ```bash
-npm run dev              # build once, then serve with watch + live-reload on http://localhost:8000
-npm run serve            # serve current index.html without the initial build
+npm run dev              # build once, then serve on http://localhost:8000 with watch + reload
+npm run serve            # serve current index.html, no initial build
 # options:  node scripts/dev-server.js --port 9000 --no-build
 ```
 
-Open the printed `http://localhost:<port>/` in your browser (on WSL, your Windows browser works — `localhost` is forwarded) and use DevTools (F12). Edit a `src/*.py` builder and save: the server rebuilds `index.html` and the page reloads itself.
+On WSL, open the printed URL in your Windows browser — `localhost` is forwarded. Edit a builder in `src/` and save: the server rebuilds `index.html` and the page reloads itself.
 
 ## Guides
 

@@ -17,10 +17,13 @@ TREE = '''
 
 <details open class="card" data-tint="cw">
   <summary class="cardhead"><span class="chip chip-cw"></span>Claude Cowork <span class="cnt" data-grp="cw"></span>
-    <span class="cardsub">runs via the Claude Desktop app</span></summary>
-  <label><input type="checkbox" id="cw_desktop"><span class="tick tick-cw"></span><span class="lbl">In the Claude Desktop app</span></label>
-  <label><input type="checkbox" id="cw_project"><span class="tick tick-cw"></span><span class="lbl">Sessions inside a project</span></label>
-  <label><input type="checkbox" id="cw_standalone"><span class="tick tick-cw"></span><span class="lbl">Standalone sessions</span></label>
+    <span class="cardsub">chat &amp; Cowork share one home &mdash; claude.ai &middot; mobile app &middot; desktop app</span></summary>
+  <div class="subgrp">Remote sessions &mdash; run on Anthropic&rsquo;s servers (beta, the default)</div>
+    <label class="i2"><input type="checkbox" id="cw_remote_project"><span class="tick tick-web"></span><span class="lbl">Inside a project</span></label>
+    <label class="i2"><input type="checkbox" id="cw_remote_noproj"><span class="tick tick-web"></span><span class="lbl">Outside a project <span class="scopenote"></span></span></label>
+  <div class="subgrp">Local sessions &mdash; run on your computer (Claude Desktop app only)</div>
+    <label class="i2"><input type="checkbox" id="cw_local_project"><span class="tick tick-cw"></span><span class="lbl">Inside a project</span></label>
+    <label class="i2"><input type="checkbox" id="cw_local_noproj"><span class="tick tick-cw"></span><span class="lbl">Outside a project</span></label>
 </details>
 
 <details open class="card" data-tint="code">
@@ -47,7 +50,8 @@ TREE = '''
 <label><input type="checkbox" id="code_web"><span class="tick tick-web"></span><span class="lbl">On the web &mdash; <code>claude.ai/code</code> in any browser <span class="scopenote"></span></span></label>
 </details>
 
-<p class="fine">A Cowork project is not the same thing as a project on claude.ai. Standalone Cowork sessions can also &ldquo;Work in a Folder&rdquo; &mdash; a project adds the bundle of folders, standing instructions, and a dedicated memory store. The Desktop app can also host sessions inside WSL via its SSH feature (niche; not mapped). Settings \u2192 Profile also holds your name, what Claude should call you, and what best describes your work \u2014 lighter-weight context Claude sees account-wide. The colored tick before each context shows which memory home it touches: <span class="tick tick-mac inlinetick"></span>Mac, <span class="tick tick-win inlinetick"></span>Windows, <span class="tick tick-wsl inlinetick"></span>WSL, <span class="tick tick-web inlinetick"></span>cloud, <span class="tick tick-acct inlinetick"></span>your account, <span class="tick tick-cw inlinetick"></span>Cowork.</p>
+<p class="fine">A Cowork session runs remote or local for its whole life &mdash; you choose at start (the &ldquo;Beta&rdquo; button, or Settings &rarr; Cowork &rarr; &ldquo;Run new tasks in the cloud&rdquo;). Chat and Cowork share one Projects list now; a project tied to a local folder is Cowork-only, desktop-only. A remote session can reach your local folders and tools only while the desktop app is open and connected &mdash; and remote scheduled tasks can&rsquo;t use local folders or local connectors at all. Not on the map: Dispatch (the persistent assign-from-anywhere thread) and its memory; Claude Code&rsquo;s nested per-directory CLAUDE.md files, <code>.claude/rules</code>, and subagent memory; managed-policy files; organization instructions (Team/Enterprise &mdash; they apply across Chat, Cowork, and Code and outrank yours).</p>
+<p class="fine">Settings &rarr; Profile also holds your name, what Claude should call you, and what best describes your work &mdash; lightweight context Claude sees account-wide. The colored tick on each row marks the memory home it touches: <span class="tick tick-mac inlinetick"></span>Mac, <span class="tick tick-win inlinetick"></span>Windows, <span class="tick tick-wsl inlinetick"></span>WSL, <span class="tick tick-web inlinetick"></span>cloud, <span class="tick tick-acct inlinetick"></span>your account, <span class="tick tick-cw inlinetick"></span>Cowork.</p>
 '''
 
 HTML = '''<!DOCTYPE html>
@@ -251,7 +255,7 @@ const IDS = ['ch_standalone','ch_project',
   'mac_app_local','mac_app_web','mac_cli','mac_vscode',
   'win_app_local','win_app_web','win_app_rc_wsl','win_cli_native','win_cli_wsl',
   'win_vscode_wsl','win_vscode_local','code_web',
-  'cw_desktop','cw_project','cw_standalone'];
+  'cw_remote_project','cw_remote_noproj','cw_local_project','cw_local_noproj'];
 
 const EMPTY_HTML = '<div class="emptystate"><b>Nothing mapped yet.</b>Check a context on the left to see what Claude remembers there. Add more and watch the stores and flows connect.</div>';
 
@@ -264,7 +268,7 @@ const GROUPS = {
   chat:['ch_standalone','ch_project'],
   mac:['mac_app_local','mac_app_web','mac_cli','mac_vscode'],
   win:['win_app_local','win_app_web','win_app_rc_wsl','win_cli_native','win_cli_wsl','win_vscode_wsl','win_vscode_local'],
-  cw:['cw_desktop','cw_project','cw_standalone'],
+  cw:['cw_remote_project','cw_remote_noproj','cw_local_project','cw_local_noproj'],
 };
 GROUPS.code = [...GROUPS.mac, ...GROUPS.win, 'code_web'];
 
@@ -278,7 +282,7 @@ function updateBadges(){
 
 const SCOPE_LACKS = {
   across: ['code_web','mac_app_web','win_app_web'],
-  within: ['ch_standalone'],
+  within: ['ch_standalone','cw_remote_noproj'],
   both: [],
 };
 const SCOPE_NOTE = {
@@ -287,7 +291,7 @@ const SCOPE_NOTE = {
 };
 function updateScopeUI(){
   const scope = $('scope').value;
-  ['code_web','mac_app_web','win_app_web','ch_standalone'].forEach(id => {
+  ['code_web','mac_app_web','win_app_web','ch_standalone','cw_remote_noproj'].forEach(id => {
     const el = $(id), row = el.closest('label'), note = row.querySelector('.scopenote');
     const lacks = SCOPE_LACKS[scope].includes(id);
     el.disabled = lacks && !el.checked;
@@ -356,50 +360,60 @@ const SESSIONS = [
   ['win_vscode_local','VS Code (Windows)',['winumd','winauto','repo']],
   ['win_cli_wsl','CLI (WSL)',['wslumd','wslauto','repo']],
   ['win_vscode_wsl','VS Code (WSL)',['wslumd','wslauto','repo']],
-  ['cw_project','Cowork project sessions',['cwmem','repo','prefs']],
-  ['cw_standalone','Cowork standalone sessions',['repo','prefs']],
+  ['cw_remote_project','Remote Cowork project sessions',['cwmem','cwgi','prefs']],
+  ['cw_remote_noproj','Remote Cowork sessions (no project)',['cwgi','prefs']],
+  ['cw_local_project','Local Cowork project sessions',['cwmem','cwfi','cwgi','prefs']],
+  ['cw_local_noproj','Local Cowork sessions (no project)',['cwfi','cwgi','prefs']],
 ];
 const SCOPE_OF = {
   chatmem:'across', prefs:'across', macumd:'across', winumd:'across', wslumd:'across',
   projmem:'within', repo:'within', macauto:'within', winauto:'within', wslauto:'within', cwmem:'within',
+  cwfi:'within', cwgi:'across',
 };
 const WINPATH = ['C:','Users','you','.claude'].join(String.fromCharCode(92));
 const STORE_BRIEF = {
   chatmem:'Memory from chat history',
   prefs:'Instructions for Claude',
   projmem:'Project memory',
-  repo:t => 'CLAUDE.md ('+t+')',
+  repo:'CLAUDE.md (repo)',
   macumd:'Mac home \u2014 User CLAUDE.md', winumd:'Windows home \u2014 User CLAUDE.md', wslumd:'WSL home \u2014 User CLAUDE.md',
   macauto:'Mac home \u2014 Auto memory', winauto:'Windows home \u2014 Auto memory', wslauto:'WSL home \u2014 Auto memory',
-  cwmem:'Cowork memory',
+  cwmem:'Cowork project memory',
+  cwgi:'Cowork global instructions',
+  cwfi:'Cowork folder instructions',
 };
 const STORE_FULL = {
   chatmem:'Memory from chat history: chat-history summary (refreshed daily) + saved facts, spanning every standalone chat',
   prefs:'Instructions for Claude (Settings → Profile; “Instructions” in the app): free-text standing instructions kept in mind across chats and Cowork',
   projmem:'Project memory: one per claude.ai Project',
-  repo:t => 'Project notes file \u2014 CLAUDE.md, saved in the '+t,
+  repo:'Project notes file \u2014 CLAUDE.md, saved in the repo',
   macumd:'Mac file system (~/.claude) \u2014 user CLAUDE.md: your instructions, all projects on this Mac',
   winumd:'Windows file system (' + WINPATH + ') \u2014 user CLAUDE.md: your instructions, all projects on this side',
   wslumd:'WSL file system (~/.claude) \u2014 user CLAUDE.md: your instructions, all projects on this side',
   macauto:'Mac file system (~/.claude) \u2014 auto memory: Claude\u2019s own notes, one set per project',
   winauto:'Windows file system (' + WINPATH + ') \u2014 auto memory: Claude\u2019s own notes, one set per project',
   wslauto:'WSL file system (~/.claude) \u2014 auto memory: Claude\u2019s own notes, one set per project',
-  cwmem:'Cowork project memory: one per Cowork project, on that computer',
+  cwmem:'Cowork project memory: one per project — what Claude learns in one project doesn’t carry over to others',
+  cwgi:'Global instructions (Settings → Cowork): standing instructions applied to every Cowork session',
+  cwfi:'Folder instructions: attached to a local folder on desktop — you or Claude writes them, and Claude can update them mid-session',
 };
 const LEGEND_HTML = '<details class="legend"><summary>Legend</summary><dl>'
-  + '<dt>Memory from chat history</dt><dd>Claude\u2019s account-level memory \u2014 the chat-history summary (refreshed daily) plus saved facts \u2014 applied to every standalone chat on any device. Cross-project.</dd>'
-  + '<dt>Instructions for Claude</dt><dd>The free-text box at Settings \u2192 Profile (labeled \u201cInstructions\u201d in the app). Anthropic: \u201cClaude will keep these in mind across chats and Cowork within Anthropic\u2019s guidelines.\u201d</dd>'
+  + '<dt>Memory from chat history</dt><dd>Claude\u2019s account-level memory: the chat-history summary (refreshed daily) plus your saved facts (\u201cmemory edits\u201d), loaded into every standalone chat on any device. Cross-project.</dd>'
+  + '<dt>Instructions for Claude</dt><dd>The free-text box in claude.ai Settings (\u201cInstructions\u201d in the app). The Settings page: \u201cClaude will keep these in mind across chats and Cowork within Anthropic\u2019s guidelines.\u201d Docs add: account-wide, \u201capplied to all of your conversations.\u201d</dd>'
   + '<dt>Project memory</dt><dd>A separate memory for each claude.ai Project.</dd>'
-  + '<dt>CLAUDE.md</dt><dd>The project notes file saved with the repo/project folder, read at session start by whatever opens it.</dd>'
+  + '<dt>CLAUDE.md</dt><dd>The project notes file saved with the repo, read at session start by whatever opens it.</dd>'
   + '<dt>User CLAUDE.md (Mac / Windows / WSL)</dt><dd>In that side\u2019s <code>~/.claude</code> (Windows: <code>' + WINPATH + '</code>): your instructions for every project on that side. Cross-project, but each side keeps its own file.</dd>'
   + '<dt>Auto memory (Mac / Windows / WSL)</dt><dd>Claude\u2019s own notes (auto memory) in the same folder \u2014 one set per project, per side. Relocatable into a repo-tracked folder via the <code>autoMemoryDirectory</code> setting, so it travels with the repo instead of staying machine-local.</dd>'
-  + '<dt>Cowork memory</dt><dd>Per-Cowork-project memory, kept on that computer.</dd>'
+  + '<dt>Cowork project memory</dt><dd>One per Cowork project — Claude carries what it learns into future tasks in that project, and nothing into other projects. Desktop projects keep it on that computer; where it lives for remote sessions isn’t documented yet.</dd>'
+  + '<dt>Cowork global instructions</dt><dd>Standing instructions at Settings → Cowork, applied to every Cowork session. (Docs only show editing them in the desktop app; where they’re stored isn’t documented.)</dd>'
+  + '<dt>Cowork folder instructions</dt><dd>Instructions attached to a local folder on desktop. You write them or Claude does — it can update them mid-session. Remote sessions reach them only while the desktop app is open and connected.</dd>'
+  + '<dt>Memory is chat-only (for now)</dt><dd>Anthropic: “What Claude remembers about you in chat doesn’t carry into Cowork sessions yet.” Memory from chat history, project memory, and Cowork’s stores are separate worlds today.</dd>'
+  + '<dt>Cowork sessions & delivered files</dt><dd>Remote sessions and the files Claude delivers are saved to your Claude account and reopen on any surface — storage you can revisit, not memory Claude recalls on its own. Working files it doesn’t hand back die with the session’s sandbox. Past remote sessions are found by title only.</dd>'
   + '</dl></details>';
 let labelMode = 'brief';
-function storeLabel(s, term){
+function storeLabel(s){
   const map = labelMode === 'brief' ? STORE_BRIEF : STORE_FULL;
-  const v = map[s];
-  return typeof v === 'function' ? v(term) : v;
+  return map[s];
 }
 function updateSync(){
   const ctxs = SESSIONS.filter(([id]) => $(id).checked).map(([,name,st]) => ({name, st}));
@@ -409,28 +423,32 @@ function updateSync(){
   if (scope !== 'both')
     ctxs.forEach(c => { c.st = c.st.filter(s => SCOPE_OF[s] === scope); });
   const notes = [];
-  const codeSel = GROUPS.code.some(i => $(i).checked);
-  const cwSel = $('cw_project').checked || $('cw_standalone').checked;
-  const term = (codeSel && cwSel) ? 'repo/project folder' : (codeSel ? 'repo' : 'project folder');
-  const item = (s, who) => '<div class="syncitem">' + storeLabel(s, term)
+  const item = (s, who) => '<div class="syncitem">' + storeLabel(s)
     + (who ? ' <span class="swho">— only in: ' + who.join(', ') + '</span>' : '') + '</div>';
   let html;
+  let cover = {};
   if (ctxs.length === 0){
     html = '<div class="insync"><b>In sync across your selection:</b> —</div>'
          + '<div class="notsync"><b>Kept separate:</b> —</div>';
   } else {
-    const cover = {};
     ctxs.forEach(c => c.st.forEach(s => { (cover[s] = cover[s] || []).push(c.name); }));
     const inSync = [], notSync = [];
     for (const [s, who] of Object.entries(cover))
       (who.length === ctxs.length ? inSync : notSync).push([s, who]);
     if (ctxs.length === 1) notes.push('Only one context selected — nothing to sync across yet.');
-    if (cover.repo) notes.push('CLAUDE.md sync assumes the contexts open the same repo/project folder.');
+    if (cover.repo) notes.push('CLAUDE.md sync assumes the contexts open the same repo.');
     html = '<div class="insync"><b>In sync across your selection:</b>'
       + (inSync.length ? inSync.map(([s]) => item(s)).join('') : ' None') + '</div>'
       + '<div class="notsync"><b>Kept separate:</b>'
       + (notSync.length ? notSync.map(([s,who]) => item(s, who)).join('') : ' None') + '</div>';
   }
+  const cwAnySel = GROUPS.cw.some(i => $(i).checked);
+  const chatAnySel = $('ch_standalone').checked || $('ch_project').checked;
+  if (cwAnySel && chatAnySel)
+    notes.push('Anthropic: "Memory is chat-only. What Claude remembers about you in chat doesn’t carry into Cowork sessions yet."');
+  const cwRemoteSel = $('cw_remote_project').checked || $('cw_remote_noproj').checked;
+  if (cover.cwfi && cwRemoteSel)
+    notes.push('Remote sessions reach folder instructions only while the desktop app is open and connected.');
   html += notes.map(n => '<div class="syncnote">'+n+'</div>').join('');
   const controls = '<div class="syncctl"><button id="labelmode">'
     + (labelMode === 'brief' ? 'Full labels' : 'Brief labels') + '</button></div>';

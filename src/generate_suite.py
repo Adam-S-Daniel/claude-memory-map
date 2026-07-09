@@ -36,13 +36,13 @@ C2 <-- "chatting · saying “remember this” · recalled in that Project's cha
 S2 -. "displayed here, refreshed daily · export" .-> SET
 SET -. "your edits · imports" .-> S1'''
 
-CW_CTX = f'''subgraph CW["Claude Cowork — desktop"]
+CW_CTX = f'''subgraph CW["Claude Cowork — local (desktop) & remote (Anthropic's servers) sessions"]
 direction TB
   YOU["You, at the desktop"]
   C8["Your phone, via Dispatch"]
   C6["Session inside a project"]
-  C7["One-off session ({Q}standalone
-  session{Q}) — keeps nothing afterward"]
+  C7["Session outside a project
+  (no memory carries forward)"]
 end
 
 subgraph CWLOC["On one computer — Cowork"]
@@ -55,7 +55,8 @@ YOU --> C7
 C8 -- "sends tasks to run on the desktop" --> C6
 C8 --> C7'''
 
-COWORK_MD = 'CW <-- "you or Claude writes it (e.g. /init) · read at session start" --> S4'
+S9NODE = 'S9["Folder instructions (Claude can update them during a session)"]'
+COWORK_FI = 'CW <-- "you or Claude writes them · used with a local folder" --> S9'
 C8NODE = 'C8["Your phone, via Dispatch"]'
 DISP_WIN = 'C8 -. "can send tasks to local Claude Code (observed: Windows side only, not WSL)" .-> WINSIDE'
 DISP_MAC = 'C8 -. "can send tasks to local Claude Code" .-> MACSIDE'
@@ -94,9 +95,7 @@ def repo_block(term):
   read by whatever opens it)"]
 end'''
 
-REPO_CODE = repo_block('repo')                      # Claude Code contexts only
-REPO_CW   = repo_block('project folder')            # Cowork context only
-REPO_BOTH = repo_block('repo/project folder')       # both contexts present
+REPO_CODE = repo_block('repo')                      # Claude Code contexts (Cowork no longer shares this store)
 
 WSLFS = f'''subgraph WSLFS["WSL file system — ~/.claude"]
 direction TB
@@ -162,7 +161,7 @@ NODE_CLASS = {
     'wsl':  ['W1','W2'],
     'win':  ['N1','N2'],
     'mac':  ['M1','M2'],
-    'cwloc':['S7'],
+    'cwloc':['S7','S9'],
 }
 
 SG_STYLE = {
@@ -210,7 +209,7 @@ variants['chat'] = assemble('Claude memory map — chat only',
     [CHAT_CTX, ACCT, SET, CHAT_FLOWS])
 
 variants['except-claude-code'] = assemble('Claude memory map — everything except Claude Code',
-    [CHAT_CTX, ACCT, SET, CW_CTX, REPO_CW, CHAT_FLOWS, CW_FLOWS, COWORK_MD])
+    [CHAT_CTX, ACCT, SET, CW_CTX, S9NODE, CHAT_FLOWS, CW_FLOWS, COWORK_FI])
 
 variants['claude-code-windows'] = assemble('Claude memory map — Claude Code (Windows, incl. WSL)',
     [WSLSIDE, WINSIDE, C5, REPO_CODE, WSLFS, WINFS,
@@ -228,19 +227,19 @@ variants['claude-code-all'] = assemble('Claude memory map — Claude Code (all p
      C8NODE, DISP_WIN, DISP_MAC], spacing=(70,120))
 
 variants['complete-windows'] = assemble('Claude memory map — complete (Windows, incl. WSL)',
-    [CHAT_CTX, ACCT, SET, code_wrap([WSLSIDE, WINSIDE, C5]), REPO_BOTH, WSLFS, WINFS, CW_CTX,
+    [CHAT_CTX, ACCT, SET, code_wrap([WSLSIDE, WINSIDE, C5]), REPO_CODE, WSLFS, WINFS, CW_CTX, S9NODE,
      CHAT_FLOWS, bundled_flows('WSLSIDE','WSLFS'), bundled_flows('WINSIDE','WINFS'),
-     WEB_FLOWS, CW_FLOWS, COWORK_MD, DISP_WIN])
+     WEB_FLOWS, CW_FLOWS, COWORK_FI, DISP_WIN])
 
 variants['complete-mac'] = assemble('Claude memory map — complete (Mac)',
-    [CHAT_CTX, ACCT, SET, code_wrap([MACSIDE, C5]), REPO_BOTH, MACFS, CW_CTX,
-     CHAT_FLOWS, bundled_flows('MACSIDE','MACFS'), WEB_FLOWS, CW_FLOWS, COWORK_MD, DISP_MAC])
+    [CHAT_CTX, ACCT, SET, code_wrap([MACSIDE, C5]), REPO_CODE, MACFS, CW_CTX, S9NODE,
+     CHAT_FLOWS, bundled_flows('MACSIDE','MACFS'), WEB_FLOWS, CW_FLOWS, COWORK_FI, DISP_MAC])
 
 variants['complete-all'] = assemble('Claude memory map — complete (all platforms)',
-    [CHAT_CTX, ACCT, SET, code_wrap([WSLSIDE, WINSIDE, MACSIDE, C5]), REPO_BOTH,
-     WSLFS, WINFS, MACFS, CW_CTX,
+    [CHAT_CTX, ACCT, SET, code_wrap([WSLSIDE, WINSIDE, MACSIDE, C5]), REPO_CODE,
+     WSLFS, WINFS, MACFS, CW_CTX, S9NODE,
      CHAT_FLOWS, bundled_flows('WSLSIDE','WSLFS'), bundled_flows('WINSIDE','WINFS'),
-     bundled_flows('MACSIDE','MACFS'), WEB_FLOWS, CW_FLOWS, COWORK_MD, DISP_WIN, DISP_MAC])
+     bundled_flows('MACSIDE','MACFS'), WEB_FLOWS, CW_FLOWS, COWORK_FI, DISP_WIN, DISP_MAC])
 
 outdir = pathlib.Path(__file__).resolve().parent.parent / 'suite'
 outdir.mkdir(parents=True, exist_ok=True)

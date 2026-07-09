@@ -41,7 +41,7 @@ end
 subgraph REPO["Saved with the project's files"]
   S4["Project notes file — CLAUDE.md
   (&quot;project instructions&quot;)
-  (one per repo/project folder,
+  (one per repo,
   read by whatever opens it)"]
 end
 
@@ -55,18 +55,20 @@ direction TB
   (one set per project)"]
 end
 
-subgraph CW["Claude Cowork — desktop"]
+subgraph CW["Claude Cowork — local (desktop) & remote (Anthropic's servers) sessions"]
 direction TB
   YOU["You, at the desktop"]
   C8["Your phone, via Dispatch"]
   C6["Session inside a project"]
-  C7["One-off session (&quot;standalone
-  session&quot;) — keeps nothing afterward"]
+  C7["Session outside a project
+  (no memory carries forward)"]
 end
 
 subgraph CWLOC["On one computer — Cowork"]
   S7["Cowork project memory"]
 end
+
+S9["Folder instructions (Claude can update them during a session)"]
 
 C1 -- "synthesized daily" --> S2
 C1 -- "saying “remember this”" --> S1
@@ -89,7 +91,7 @@ YOU --> C7
 C8 -- "sends tasks to run on the desktop" --> C6
 C8 --> C7
 
-CW <-- "you or Claude writes it (e.g. /init) · read at session start" --> S4
+CW <-- "you or Claude writes them · used with a local folder" --> S9
 
 C8 -. "can send tasks to local Claude Code" .-> MACSIDE
 
@@ -106,7 +108,7 @@ class C3,C7 quiet
 class S1,S2,S3 acct
 class S4 repo
 class M1,M2 mac
-class S7 cwloc
+class S7,S9 cwloc
 style CHAT fill:#FDFBF7,stroke:#C9C3B6,stroke-width:1px,color:#6B675E
 style CODE fill:#FDFBF7,stroke:#C9C3B6,stroke-width:1px,color:#6B675E
 style CW fill:#FDFBF7,stroke:#C9C3B6,stroke-width:1px,color:#6B675E
