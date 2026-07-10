@@ -71,3 +71,14 @@
   a site preview mirror + preview URL comment. See README →
   "Publishing to adamdaniel.ai". Never merge the draft `tool-preview/*`
   mirror PRs in the site repo.
+- The site's visual-regression gate **auto-passes sync PRs by design**
+  (existing-tool updates are reviewed here, not there). A sync PR that
+  unexpectedly demands a human regression review means something beyond the
+  vendored asset changed — investigate before approving. If site PRs stop
+  appearing at all: `site-sync` fails loudly when `SITE_SYNC_TOKEN` is
+  missing/expired while `site-preview` soft-skips with a warning — check
+  this repo's Actions tab first.
+- `site-{sync,preview}.yml` + `scripts/sync-to-site.sh` are the **reference
+  implementation** for any tool repo syncing onto the site's `/tools/`
+  section — keep them copy-portable (slug/paths parameterized up top, no
+  memory-map-specific logic below).
