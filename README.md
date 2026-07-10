@@ -59,7 +59,7 @@ npm run setup:browser    # Chrome-for-Testing into ~/.cache/puppeteer (Linux/WSL
 npm test
 ```
 
-**Run the suite:** `npm test` picks a browser in this order — `CHROMIUM_PATH` → newest Chrome under `~/.cache/puppeteer` → `/tmp/chromium` (CI). To watch it drive the UI:
+**Run the suite:** `npm test` picks a browser in this order — `CHROMIUM_PATH` → newest Chrome under `~/.cache/puppeteer` → a Playwright Chromium under `$PLAYWRIGHT_BROWSERS_PATH` (pre-installed on Claude Code web at `/opt/pw-browsers`, so `npm install && npm test` just works there) → `/tmp/chromium` (CI). To watch it drive the UI:
 
 ```bash
 npm run test:headed      # visible browser window

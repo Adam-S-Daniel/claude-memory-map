@@ -10,6 +10,8 @@ const MERMAID_BUNDLE = path.resolve(__dirname, '../node_modules/mermaid/dist/mer
 // Browser launch resolution.
 //   CI / serverless: CHROMIUM_PATH unset (or /tmp/chromium) -> @sparticuz/chromium args, headless shell.
 //   Local: auto-detect a Chrome-for-Testing under ~/.cache/puppeteer (or CHROMIUM_PATH) -> desktop args.
+//   Claude Code web: a Playwright-managed Chromium under $PLAYWRIGHT_BROWSERS_PATH
+//   (/opt/pw-browsers there) -> desktop args, same as local.
 //   Debug knobs (local only): HEADED=1 visible window, DEVTOOLS=1 open devtools, SLOWMO=<ms> per-step delay.
 function detectLocalChrome(){
   const root = path.join(os.homedir(), '.cache', 'puppeteer', 'chrome');
@@ -21,8 +23,23 @@ function detectLocalChrome(){
   } catch {}
   return null;
 }
+function detectPlaywrightChromium(){
+  const root = process.env.PLAYWRIGHT_BROWSERS_PATH;
+  if (!root) return null;
+  const link = path.join(root, 'chromium');            // env-provided symlink, if any
+  if (fs.existsSync(link)) return link;
+  try {
+    for (const d of fs.readdirSync(root).filter(n => /^chromium-\d+$/.test(n)).sort().reverse()){
+      for (const exe of [path.join(root, d, 'chrome-linux64', 'chrome'),
+                         path.join(root, d, 'chrome-linux', 'chrome')]){
+        if (fs.existsSync(exe)) return exe;
+      }
+    }
+  } catch {}
+  return null;
+}
 function launchOptions(){
-  const exe = process.env.CHROMIUM_PATH || detectLocalChrome();
+  const exe = process.env.CHROMIUM_PATH || detectLocalChrome() || detectPlaywrightChromium();
   const serverless = !exe || exe === '/tmp/chromium';
   if (serverless){
     return { executablePath: exe || '/tmp/chromium',
