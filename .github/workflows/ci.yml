@@ -27,5 +27,15 @@ jobs:
       - name: Build index.html
         run: npm run build
 
+      # The committed index.html must BE the build output. The site-sync /
+      # site-preview workflows copy the committed file to adamdaniel.ai, so
+      # this check is what makes that copy the verified build artifact.
+      - name: Verify committed index.html matches the build
+        run: |
+          if ! git diff --exit-code -- index.html; then
+            echo "::error::index.html is stale — run 'npm run build' and commit the result."
+            exit 1
+          fi
+
       - name: Run e2e test suite
         run: npm test

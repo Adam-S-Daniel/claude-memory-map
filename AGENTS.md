@@ -62,3 +62,12 @@
 ## Repo-specific additions
 
 <!-- Add your repo-specific agent guidance below this line -->
+
+- `index.html` is a **committed build artifact**: after touching anything in
+  `src/`, run `npm run build` and commit the regenerated `index.html` in the
+  same change — CI fails on drift between the two.
+- Merges to `main` that change `index.html` **auto-publish** to
+  adamdaniel.ai (vendor-bump PR with auto-merge), and PRs that change it get
+  a site preview mirror + preview URL comment. See README →
+  "Publishing to adamdaniel.ai". Never merge the draft `tool-preview/*`
+  mirror PRs in the site repo.
