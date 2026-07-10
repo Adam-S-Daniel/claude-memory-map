@@ -87,7 +87,7 @@ The map is embedded on [adamdaniel.ai/tools/claude-memory-map](https://adamdanie
 
 Both copy the **committed** `index.html` — safe because CI's drift check fails any PR where the committed file doesn't match the deterministic `npm run build` output.
 
-Setup (one-time): a fine-grained PAT scoped to `Adam-S-Daniel/adamdaniel.ai` with **Contents** and **Pull requests** read-write, stored as the `SITE_SYNC_TOKEN` Actions secret in this repo. A PAT (not `GITHUB_TOKEN`) is required so the PRs it opens still trigger the site's CI. Auto-merge assumes "Allow auto-merge" is enabled on the site repo; if it isn't, the sync PR stays open with a warning in the run log. Fork PRs are skipped (no secret access). If the vendored directory doesn't exist on the site's `main` yet (it lands in adamdaniel.ai#2280), both workflows no-op with a warning.
+Setup (one-time): a fine-grained PAT scoped to `Adam-S-Daniel/adamdaniel.ai` with **Contents** and **Pull requests** read-write, stored as the `SITE_SYNC_TOKEN` Actions secret in this repo. A PAT (not `GITHUB_TOKEN`) is required so the PRs it opens still trigger the site's CI. Auto-merge assumes "Allow auto-merge" is enabled on the site repo; if it isn't, the sync PR stays open with a warning in the run log. Until the secret exists, `site-preview` **soft-skips** with a warning (a preview is a nice-to-have) while `site-sync` **fails loudly** (a silently stale live site would be worse). Fork PRs are skipped (no secret access). If the vendored directory doesn't exist on the site's `main` yet (it lands in adamdaniel.ai#2280), both workflows no-op with a warning.
 
 ## Guides
 

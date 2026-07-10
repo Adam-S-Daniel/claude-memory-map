@@ -37,15 +37,6 @@ jobs:
     if: github.event.action != 'closed' && github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     steps:
-      - name: Require SITE_SYNC_TOKEN
-        env:
-          HAVE_TOKEN: ${{ secrets.SITE_SYNC_TOKEN != '' }}
-        run: |
-          if [ "$HAVE_TOKEN" != "true" ]; then
-            echo "::error::SITE_SYNC_TOKEN is not set. Create a fine-grained PAT scoped to ${SITE_REPO} (Contents + Pull requests, read-write) and add it as an Actions secret. See README → Publishing to adamdaniel.ai."
-            exit 1
-          fi
-
       - name: Does this PR change index.html?
         id: relevance
         env:
@@ -57,14 +48,30 @@ jobs:
             echo "relevant=false" >>"$GITHUB_OUTPUT"
           fi
 
-      - name: Checkout PR head
+      # Soft-skip (not a red X) while the PAT is unconfigured: a preview is a
+      # nice-to-have on a PR. The main-branch publish path (site-sync.yml)
+      # hard-fails instead — silent staleness there would be worse.
+      - name: Check SITE_SYNC_TOKEN
+        id: token
         if: steps.relevance.outputs.relevant == 'true'
+        env:
+          HAVE_TOKEN: ${{ secrets.SITE_SYNC_TOKEN != '' }}
+        run: |
+          echo "have=$HAVE_TOKEN" >>"$GITHUB_OUTPUT"
+          if [ "$HAVE_TOKEN" != "true" ]; then
+            msg="SITE_SYNC_TOKEN is not set — skipping the site preview mirror. Create a fine-grained PAT scoped to ${SITE_REPO} (Contents + Pull requests, read-write) and add it as an Actions secret. See README → Publishing to adamdaniel.ai."
+            echo "::warning::$msg"
+            echo "$msg" >>"$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Checkout PR head
+        if: steps.relevance.outputs.relevant == 'true' && steps.token.outputs.have == 'true'
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Checkout site repo
-        if: steps.relevance.outputs.relevant == 'true'
+        if: steps.relevance.outputs.relevant == 'true' && steps.token.outputs.have == 'true'
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           repository: Adam-S-Daniel/adamdaniel.ai
@@ -73,7 +80,7 @@ jobs:
           path: site
 
       - name: Copy index.html + provenance, push preview branch
-        if: steps.relevance.outputs.relevant == 'true'
+        if: steps.relevance.outputs.relevant == 'true' && steps.token.outputs.have == 'true'
         id: sync
         env:
           SITE_DIR: ${{ github.workspace }}/site
