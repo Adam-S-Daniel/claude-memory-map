@@ -78,6 +78,17 @@ npm run serve            # serve current index.html, no initial build
 
 On WSL, open the printed URL in your Windows browser — `localhost` is forwarded. Edit a builder in `src/` and save: the server rebuilds `index.html` and the page reloads itself.
 
+## Publishing to adamdaniel.ai
+
+The map is embedded on [adamdaniel.ai/tools/claude-memory-map](https://adamdaniel.ai/tools/claude-memory-map/) as a vendored copy of `index.html` (the site stays hermetic — it never fetches this repo at build time). Two workflows here keep that copy current; the site repo needs no machinery of its own beyond its normal PR pipeline:
+
+- **`site-sync.yml`** — on every push to `main` that changes `index.html`: force-pushes the file + a provenance record (`_data/tool_sources/claude-memory-map.yml`) to the site branch `tool-sync/claude-memory-map`, opens/reuses a PR, and enables auto-merge. The site's own CI + deploy take it live with no manual step.
+- **`site-preview.yml`** — on every PR here that changes `index.html`: mirrors the PR's file to the site branch `tool-preview/claude-memory-map-pr-<n>` as a **draft** PR, which the site's existing deploy-preview pipeline publishes at `https://preview-pr<N>.adamdaniel.ai/tools/claude-memory-map/`. The URL is commented on the PR here and updates on every push. Closing the PR closes the mirror and tears the preview down; merging it lands via `site-sync` instead (never merge the draft mirror).
+
+Both copy the **committed** `index.html` — safe because CI's drift check fails any PR where the committed file doesn't match the deterministic `npm run build` output.
+
+Setup (one-time): a fine-grained PAT scoped to `Adam-S-Daniel/adamdaniel.ai` with **Contents** and **Pull requests** read-write, stored as the `SITE_SYNC_TOKEN` Actions secret in this repo. A PAT (not `GITHUB_TOKEN`) is required so the PRs it opens still trigger the site's CI. Auto-merge assumes "Allow auto-merge" is enabled on the site repo; if it isn't, the sync PR stays open with a warning in the run log. Until the secret exists, `site-preview` **soft-skips** with a warning (a preview is a nice-to-have) while `site-sync` **fails loudly** (a silently stale live site would be worse). Fork PRs are skipped (no secret access). If the vendored directory doesn't exist on the site's `main` yet (it lands in adamdaniel.ai#2280), both workflows no-op with a warning.
+
 ## Guides
 
 - [Portable memory across machines](./docs/portable-memory.md) — why auto memory is machine-local by default, and how to make it travel with the repo via `autoMemoryDirectory`.
