@@ -1,0 +1,786 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Memory Monitor — what Claude remembers, where</title>
+<style>
+  :root{
+    --paper:#FDFBF7; --ink:#3D3A34; --muted:#6B675E; --line:#E4DFD4; --panel:#FFFFFF;
+    --blue:#4A6B8F; --amber:#9A6F33; --wsl:#54805C; --win:#B06A4F;
+    --mac:#5B6B7F; --plum:#8F5C82; --web:#8A8478;
+  }
+  *{ box-sizing:border-box; margin:0; padding:0; }
+  html,body{ height:100%; }
+  body{ background:var(--paper); color:var(--ink);
+        font-family:Helvetica, Arial, sans-serif; -webkit-font-smoothing:antialiased;
+        overflow-x:hidden; }
+  code, .mono{ font-family:ui-monospace,'Cascadia Code',Menlo,Consolas,monospace;
+        font-size:.9em; background:#F3EFE6; border-radius:4px; padding:1px 5px; word-break:break-all; }
+  h1,h2,.serif{ font-family:Georgia,'Times New Roman',serif; font-weight:normal; }
+
+  /* ---------- top bar + sync headline ---------- */
+  #topbar{ position:sticky; top:0; z-index:40; background:var(--paper);
+           border-bottom:1px solid var(--line); padding:12px 20px;
+           display:flex; align-items:center; gap:18px; flex-wrap:wrap; }
+  #topbar h1{ font-size:20px; letter-spacing:.2px; margin-right:6px; white-space:nowrap; }
+  #topbar h1 .dot{ display:inline-block; width:9px; height:9px; border-radius:50%;
+           background:var(--wsl); margin-right:8px; vertical-align:2px; }
+  @keyframes livepulse{ 0%,100%{ opacity:1 } 50%{ opacity:.35 } }
+  #topbar h1 .dot{ animation:livepulse 2.4s ease-in-out infinite; }
+  #sync{ font-size:12.5px; color:var(--muted); line-height:1.45; flex:1; min-width:240px; }
+  #sync .hd{ font-weight:bold; color:var(--ink); }
+  #sync .sep{ color:var(--line); margin:0 8px; }
+  #sync b.good{ color:var(--wsl); } #sync b.split{ color:var(--win); }
+  #sync .note{ display:block; color:var(--muted); font-style:italic; font-size:11.5px; margin-top:2px; }
+
+  /* ---------- app grid ---------- */
+  #app{ display:grid; grid-template-columns:1fr 372px; align-items:start; }
+  #stage{ position:relative; display:grid; grid-template-columns:236px 1fr;
+          min-height:calc(100vh - 58px); }
+
+  /* ---------- rail (process list / picker) ---------- */
+  #rail{ border-right:1px solid var(--line); padding:14px 12px 40px;
+         position:relative; z-index:3; min-width:0; }
+  .railhd{ display:flex; align-items:center; gap:8px; margin:2px 4px 10px; }
+  .railhd .t{ font-size:11px; letter-spacing:1.5px; text-transform:uppercase; color:var(--muted); margin-right:auto; }
+  .addbtn{ border:1px solid var(--line); background:var(--panel); color:var(--ink);
+           font-size:12.5px; border-radius:8px; padding:6px 11px; cursor:pointer; min-height:34px; }
+  .addbtn:hover{ border-color:var(--blue); }
+  .railempty{ font-size:12.5px; color:var(--muted); line-height:1.5; padding:14px 8px;
+              border:1px dashed var(--line); border-radius:10px; margin:4px; }
+  #raillist{ display:flex; flex-direction:column; gap:5px; }
+  .railrow{ display:flex; align-items:center; gap:8px; background:var(--panel);
+            border:1px solid var(--line); border-left-width:3px; border-radius:9px;
+            padding:7px 8px 7px 9px; cursor:pointer; min-height:44px; }
+  .railrow:hover{ background:#FbF9F4; }
+  .railrow.sel{ outline:2px solid var(--blue); outline-offset:-1px; }
+  .railrow .cdot{ width:9px; height:9px; border-radius:50%; flex:0 0 auto; }
+  .railrow .rl{ flex:1; min-width:0; font-size:12.5px; line-height:1.25; }
+  .railrow .cnt{ font-size:10.5px; color:var(--muted); background:#F3EFE6; border-radius:8px;
+            padding:1px 6px; flex:0 0 auto; }
+  .railrow .warn{ color:var(--amber); flex:0 0 auto; font-size:12px; }
+  .railrow .rm{ border:none; background:none; color:var(--muted); cursor:pointer; font-size:16px;
+            line-height:1; padding:4px 4px; flex:0 0 auto; border-radius:6px; min-width:28px; min-height:28px; }
+  .railrow .rm:hover{ color:var(--win); background:#F7EEEA; }
+
+  /* ---------- picker menu ---------- */
+  #picker{ position:absolute; z-index:60; top:52px; left:12px; width:290px; max-height:70vh; overflow:auto;
+           background:var(--panel); border:1px solid var(--line); border-radius:12px;
+           box-shadow:0 10px 32px rgba(60,58,52,.16); padding:8px; display:none; }
+  #picker.open{ display:block; }
+  .pgrp{ margin:6px 4px 2px; font-size:10.5px; letter-spacing:1.2px; text-transform:uppercase;
+         color:var(--muted); display:flex; align-items:center; gap:7px; }
+  .pgrp .cdot{ width:8px; height:8px; border-radius:50%; }
+  .popt{ display:flex; align-items:center; gap:9px; padding:8px 8px; border-radius:8px;
+         cursor:pointer; font-size:13px; min-height:40px; }
+  .popt:hover{ background:#F7F4EC; }
+  .popt input{ width:16px; height:16px; accent-color:var(--blue); flex:0 0 auto; }
+  .popt .sub{ display:block; color:var(--muted); font-size:11px; margin-top:1px; }
+  .pickclose{ position:sticky; bottom:0; }
+
+  /* ---------- board (world map of homes) ---------- */
+  #board{ padding:16px 18px 60px; position:relative; z-index:2;
+          display:grid; gap:14px; align-items:start; align-content:start;
+          grid-template-columns:repeat(4,1fr);
+          grid-template-areas:
+            "account account repo web"
+            "mac windows wsl cowork"; }
+  .region{ border:1px solid var(--line); border-radius:14px; padding:10px 11px 12px;
+           background:var(--panel); transition:opacity .25s ease; min-width:0; }
+  .region.dim{ opacity:.42; }
+  @media (prefers-reduced-motion:reduce){ .region{ transition:none; } }
+  .region>header{ display:flex; align-items:baseline; gap:7px; margin:0 2px 9px; flex-wrap:wrap; }
+  .region>header .rn{ font-size:12.5px; font-weight:bold; }
+  .region>header .rs{ font-size:11px; color:var(--muted); }
+  .region>header .rpath{ font-size:10.5px; }
+  .region[data-home="account"]{ background:#EEF3F8; }
+  .region[data-home="repo"]{ background:#F7F3E8; }
+  .region[data-home="mac"]{ background:#EDF1F5; }
+  .region[data-home="windows"]{ background:#FBF0EC; }
+  .region[data-home="wsl"]{ background:#EFF5F0; }
+  .region[data-home="cowork"]{ background:#F6EFF4; }
+  .region[data-home="web"]{ background:#F2F0EC; border-style:dashed; }
+  .r-account{ grid-area:account; } .r-repo{ grid-area:repo; } .r-web{ grid-area:web; }
+  .r-mac{ grid-area:mac; } .r-windows{ grid-area:windows; } .r-wsl{ grid-area:wsl; } .r-cowork{ grid-area:cowork; }
+  .stores{ display:flex; flex-direction:column; gap:8px; }
+
+  .store{ background:var(--panel); border:1px solid var(--line); border-left-width:3px;
+          border-radius:10px; padding:8px 9px; cursor:pointer; transition:box-shadow .15s ease, opacity .2s ease;
+          position:relative; }
+  .store:hover{ box-shadow:0 3px 12px rgba(60,58,52,.10); }
+  .store.off{ opacity:.5; }
+  .store.sel{ outline:2px solid var(--blue); outline-offset:-1px; }
+  .store .sn{ font-size:12.5px; font-weight:bold; line-height:1.25; }
+  .store .sm{ font-size:11px; color:var(--muted); margin-top:2px; line-height:1.3; }
+  .store .touched{ display:flex; gap:3px; margin-top:6px; align-items:center; min-height:10px; flex-wrap:wrap; }
+  .store .touched .cdot{ width:8px; height:8px; border-radius:50%; }
+  .store .touched .none{ font-size:10px; color:var(--muted); font-style:italic; }
+  .warnbadge{ position:absolute; top:7px; right:8px; font-size:12px; color:var(--amber); line-height:1; }
+  @keyframes softpulse{ 0%,100%{ transform:scale(1); opacity:.9 } 50%{ transform:scale(1.28); opacity:1 } }
+  .store.on .warnbadge, .region .warnbadge.live{ animation:softpulse 2.6s ease-in-out infinite; transform-origin:center; }
+  @media (prefers-reduced-motion:reduce){ .warnbadge{ animation:none !important; } }
+  .region .webnote{ font-size:11.5px; color:var(--muted); line-height:1.45; padding:2px 2px 4px; }
+
+  /* ---------- traces ---------- */
+  #traces{ position:absolute; inset:0; width:100%; height:100%; pointer-events:none; z-index:5; }
+  #traces path.hit{ stroke:transparent; stroke-width:14; fill:none; pointer-events:stroke; cursor:pointer; }
+  #traces path.wire{ fill:none; stroke-linecap:round; }
+  @keyframes flow{ to{ stroke-dashoffset:-16; } }
+  #traces path.wire.anim{ stroke-dasharray:2 6; animation:flow 1.1s linear infinite; }
+  @media (prefers-reduced-motion:reduce){ #traces path.wire.anim{ animation:none; stroke-dasharray:2 6; } }
+
+  /* ---------- inspector ---------- */
+  #inspector{ position:sticky; top:58px; align-self:start; height:calc(100vh - 58px);
+              border-left:1px solid var(--line); background:var(--panel);
+              overflow-y:auto; padding:18px 18px 40px; z-index:5; }
+  .insp-empty{ color:var(--muted); font-size:13px; line-height:1.55; padding:20px 6px; }
+  .insp-empty b{ display:block; font-family:Georgia,serif; font-size:16px; color:var(--ink); margin-bottom:8px; }
+  .ihandle{ display:none; }
+  .kicker{ font-size:11px; letter-spacing:1.4px; text-transform:uppercase; font-weight:bold; margin-bottom:5px; }
+  #inspector h2{ font-size:19px; line-height:1.2; margin-bottom:4px; }
+  .isub{ font-size:12px; color:var(--muted); margin-bottom:12px; }
+  .iclose{ position:absolute; top:12px; right:12px; border:1px solid var(--line); background:var(--panel);
+           color:var(--muted); border-radius:8px; width:30px; height:30px; cursor:pointer; font-size:16px; line-height:1; }
+  .iclose:hover{ color:var(--ink); border-color:var(--blue); }
+  .surprise{ background:#FBF3E7; border:1px solid #E7D3AC; border-radius:10px;
+             padding:9px 11px; font-size:12.5px; line-height:1.5; margin:0 0 14px; color:#7A5518; }
+  .surprise .st{ font-weight:bold; display:block; margin-bottom:2px; }
+  .ifield{ margin-bottom:13px; }
+  .ifield .fl{ font-size:10.5px; letter-spacing:1.2px; text-transform:uppercase; color:var(--muted); margin-bottom:3px; }
+  .ifield .fv{ font-size:13px; line-height:1.5; }
+  .chips{ display:flex; flex-wrap:wrap; gap:6px; }
+  .chip{ display:inline-flex; align-items:center; gap:6px; font-size:12px; background:#F7F4EC;
+         border:1px solid var(--line); border-radius:20px; padding:4px 10px; cursor:pointer; min-height:30px; }
+  .chip:hover{ background:#F0EBDF; }
+  .chip .cdot{ width:8px; height:8px; border-radius:50%; }
+  .chip.none{ color:var(--muted); font-style:italic; cursor:default; background:none; border:none; padding-left:0; }
+  .syncline{ font-size:13px; line-height:1.5; }
+  .syncline.good{ color:var(--wsl); } .syncline.split{ color:var(--win); }
+  .syncline b{ font-weight:bold; }
+  .act{ background:#F5F8F5; border:1px solid #CFE0D2; border-radius:10px; padding:10px 11px; }
+  .act .fl{ color:var(--wsl); }
+  .act .fv{ font-size:12.5px; }
+  .scopetag{ display:inline-block; font-size:10.5px; letter-spacing:.4px; border:1px solid var(--line);
+             border-radius:7px; padding:2px 7px; color:var(--muted); margin-top:2px; }
+
+  /* ---------- mobile ---------- */
+  #scrim{ display:none; }
+  @media (max-width:860px){
+    #topbar{ padding:10px 14px; }
+    #topbar h1{ font-size:17px; }
+    #sync{ flex-basis:100%; min-width:0; }
+    #app{ grid-template-columns:1fr; }
+    #stage{ grid-template-columns:1fr; min-height:0; }
+    #traces{ display:none; }
+    #rail{ border-right:none; border-bottom:1px solid var(--line); padding:10px 12px 12px;
+           position:sticky; top:57px; background:var(--paper); z-index:20; }
+    #raillist{ flex-direction:row; overflow-x:auto; gap:7px; padding-bottom:4px;
+               -webkit-overflow-scrolling:touch; }
+    .railrow{ flex:0 0 auto; max-width:220px; }
+    .railrow .rl{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    #picker{ position:fixed; top:auto; bottom:0; left:0; right:0; width:auto; max-height:76vh;
+             border-radius:16px 16px 0 0; }
+    #board{ grid-template-columns:1fr; grid-template-areas:
+              "account" "repo" "mac" "windows" "wsl" "cowork" "web";
+            padding:14px 12px 40px; }
+    #inspector{ position:fixed; left:0; right:0; bottom:0; top:auto; height:auto; max-height:82vh;
+                border-left:none; border-top:1px solid var(--line); border-radius:16px 16px 0 0;
+                box-shadow:0 -8px 30px rgba(60,58,52,.18); z-index:60;
+                transform:translateY(102%); transition:transform .26s ease;
+                padding-bottom:calc(30px + env(safe-area-inset-bottom)); }
+    #inspector.open{ transform:translateY(0); }
+    .ihandle{ display:block; width:38px; height:4px; border-radius:2px; background:var(--line);
+              margin:0 auto 12px; }
+    @media (prefers-reduced-motion:reduce){ #inspector{ transition:none; } }
+    #scrim.show{ display:block; position:fixed; inset:0; background:rgba(60,58,52,.28); z-index:55; }
+  }
+</style>
+</head>
+<body>
+<header id="topbar">
+  <h1><span class="dot"></span>Memory Monitor</h1>
+  <div id="sync"></div>
+</header>
+
+<div id="app">
+  <div id="stage">
+    <aside id="rail">
+      <div class="railhd">
+        <span class="t">Your selection</span>
+        <button class="addbtn" id="addbtn">＋ Add</button>
+      </div>
+      <div id="picker"></div>
+      <div id="raillist"></div>
+    </aside>
+    <main id="board"></main>
+    <svg id="traces" xmlns="http://www.w3.org/2000/svg"></svg>
+  </div>
+  <aside id="inspector"></aside>
+</div>
+<div id="scrim"></div>
+
+<script>
+"use strict";
+window.addEventListener('error', e => {
+  const i = document.getElementById('inspector');
+  if (i) i.insertAdjacentHTML('afterbegin','<p style="color:#A0552F;font-size:13px">Page error: '+(e.message||'unknown')+'</p>');
+});
+
+/* =========================================================================
+   Canonical model (faithful to prototypes/SPEC.md — facts & terminology)
+   ========================================================================= */
+const WINPATH = 'C:' + String.fromCharCode(92) + 'Users' + String.fromCharCode(92) + 'you' + String.fromCharCode(92) + '.claude';
+
+const HOMES = {
+  account:{ name:'On your account', sub:'online, any device', color:'#4A6B8F' },
+  repo:   { name:"Saved with the project's files", sub:'travels with the repo', color:'#9A6F33' },
+  mac:    { name:'Mac file system', path:'~/.claude', color:'#5B6B7F' },
+  windows:{ name:'Windows file system', path:WINPATH, color:'#B06A4F' },
+  wsl:    { name:'WSL file system', path:'~/.claude', color:'#54805C' },
+  cowork: { name:'On one computer', sub:'Cowork', color:'#8F5C82' },
+  web:    { name:'Claude Code on the web', sub:'no home of its own', color:'#8A8478' },
+};
+
+// Stores, grouped by home in board order.
+const STORES = {
+  // account
+  chatmem:{ home:'account', name:'Memory from chat history', scope:'across',
+    inn:'Two parts: a chat-history summary ("memory summary") synthesized daily from your standalone chats, plus saved facts ("memory edits") applied immediately when you say "remember this". Saved facts feed the summary.',
+    out:'Loaded into every new standalone chat.',
+    act:{label:'Settings → Memory', text:'Managed at "Manage memory" — home of the "Generate memory from chat history" toggle. Your edits and imports become saved facts; export is available.'} },
+  prefs:{ home:'account', name:'Instructions for Claude', scope:'across',
+    inn:'A free-text box you fill in at Settings → Profile ("Instructions" in the app).',
+    out:'Applied to every chat and to Cowork sessions. Anthropic: "Claude will keep these in mind across chats and Cowork within Anthropic’s guidelines."',
+    act:{label:'Settings → Profile', text:'Edit the "Instructions" box.'} },
+  projmem:{ home:'account', name:'Project memory', scope:'within',
+    inn:'One per claude.ai Project. Filled by chatting inside that Project and by saying "remember this" there.',
+    out:'Recalled in that Project’s chats only.',
+    surprise:{t:'Disjoint from chat history', d:'Memory from chat history loads only into standalone chats; Project memory is recalled only inside its Project. Only "Instructions for Claude" spans both.'} },
+  // repo
+  repo:{ home:'repo', name:'Project notes file — CLAUDE.md', scope:'within',
+    inn:'One per repo/project folder. You write it in code contexts; in Cowork you or Claude writes it (e.g. /init). Web sessions can update it by saving changes to the project.',
+    out:'Read at session start by whatever opens it.',
+    act:{label:'CLAUDE.md', text:'Lives in the project root — edit it like any file, or run /init to have Claude scaffold it.'} },
+  // mac
+  macumd:{ home:'mac', name:'User CLAUDE.md — Mac', scope:'across',
+    inn:'You write it; applies to all projects on this Mac.',
+    out:'Read at session start.',
+    act:{label:'~/.claude/CLAUDE.md', text:'Edit this file on the Mac side.'} },
+  macauto:{ home:'mac', name:'Auto memory — Mac', scope:'within',
+    inn:'Claude jots notes as it works, including "remember this". One set per project, on this side only.',
+    out:'Read at session start.',
+    act:{label:'autoMemoryDirectory', text:'Relocatable into a repo-tracked folder via the autoMemoryDirectory setting, so it travels with the repo (see docs/portable-memory.md).'},
+    surprise:{t:'Machine-local by default', d:'Auto memory stays on this computer unless you move it. The autoMemoryDirectory setting can put it inside the repo so it travels.'} },
+  // windows
+  winumd:{ home:'windows', name:'User CLAUDE.md — Windows', scope:'across',
+    inn:'You write it; applies to all projects on the Windows side.',
+    out:'Read at session start.',
+    act:{label:WINPATH+String.fromCharCode(92)+'CLAUDE.md', text:'Edit this file on the Windows side.'},
+    surprise:{t:'Windows and WSL are different sides', d:'Native Windows and WSL each keep their own user CLAUDE.md and their own auto memory — even on the same physical machine.'} },
+  winauto:{ home:'windows', name:'Auto memory — Windows', scope:'within',
+    inn:'Claude jots notes as it works, including "remember this". One set per project, on this side only.',
+    out:'Read at session start.',
+    act:{label:'autoMemoryDirectory', text:'Relocatable into a repo-tracked folder via the autoMemoryDirectory setting, so it travels with the repo.'},
+    surprise:{t:'Machine-local, Windows side only', d:'Separate from the WSL auto memory on the same machine; machine-local unless moved via autoMemoryDirectory.'} },
+  // wsl
+  wslumd:{ home:'wsl', name:'User CLAUDE.md — WSL', scope:'across',
+    inn:'You write it; applies to all projects on the WSL side.',
+    out:'Read at session start.',
+    act:{label:'~/.claude/CLAUDE.md', text:'Edit this file inside WSL — a different file from the Windows one.'},
+    surprise:{t:'WSL is a different side from Windows', d:'WSL keeps its own user CLAUDE.md and auto memory, separate from native Windows, on the same physical machine.'} },
+  wslauto:{ home:'wsl', name:'Auto memory — WSL', scope:'within',
+    inn:'Claude jots notes as it works, including "remember this". One set per project, on this side only.',
+    out:'Read at session start.',
+    act:{label:'autoMemoryDirectory', text:'Relocatable into a repo-tracked folder via the autoMemoryDirectory setting, so it travels with the repo instead of staying in WSL.'},
+    surprise:{t:'Separate from Windows, machine-local', d:'WSL auto memory is distinct from the native-Windows auto memory, and stays on this machine unless moved via autoMemoryDirectory.'} },
+  // cowork
+  cwmem:{ home:'cowork', name:'Cowork project memory', scope:'within',
+    inn:'One per Cowork project, kept on that computer. Remembers as you work.',
+    out:'Recalled when you reopen that project.' },
+};
+
+// Contexts (user-selectable ways of using Claude)
+const CONTEXTS = {
+  ch_standalone:{ group:'chat', color:'#4A6B8F', short:'Standalone chats',
+    label:'Chats not inside a Project ("standalone" chats)', stores:['chatmem','prefs'] },
+  ch_project:{ group:'chat', color:'#4A6B8F', short:'Project chats',
+    label:'Chats inside a Project', stores:['projmem','prefs'] },
+  mac_app_local:{ group:'mac', color:'#5B6B7F', short:'Desktop app — Mac',
+    label:'Claude Desktop app — local sessions (Mac)', stores:['macumd','macauto','repo'] },
+  mac_cli:{ group:'mac', color:'#5B6B7F', short:'CLI — Mac',
+    label:'CLI in the terminal (Mac)', stores:['macumd','macauto','repo'] },
+  mac_vscode:{ group:'mac', color:'#5B6B7F', short:'VS Code — Mac',
+    label:'VS Code with the Claude Code extension (Mac)', stores:['macumd','macauto','repo'] },
+  win_app_local:{ group:'win', color:'#B06A4F', short:'Desktop app — Windows',
+    label:'Claude Desktop app — local sessions (Windows side)', stores:['winumd','winauto','repo'] },
+  win_cli_native:{ group:'win', color:'#B06A4F', short:'CLI — Windows (native)',
+    label:'CLI in Windows — native', stores:['winumd','winauto','repo'] },
+  win_vscode_local:{ group:'win', color:'#B06A4F', short:'VS Code — Windows',
+    label:'VS Code — local, not WSL (Windows)', stores:['winumd','winauto','repo'] },
+  win_app_rc_wsl:{ group:'wsl', color:'#54805C', short:'Desktop app → WSL (/rc)',
+    label:'Desktop app (Windows) remote-controlling a CLI session in WSL (Remote Control, /rc)', stores:['wslumd','wslauto','repo'],
+    surprise:{t:'Session + memory stay in WSL', d:'Remote Control (/rc) from the Windows desktop app: the session and its memory stay in WSL (observed). Selecting it also selects the WSL CLI it implies.'} },
+  win_cli_wsl:{ group:'wsl', color:'#54805C', short:'CLI — WSL',
+    label:'CLI in WSL', stores:['wslumd','wslauto','repo'] },
+  win_vscode_wsl:{ group:'wsl', color:'#54805C', short:'VS Code — WSL',
+    label:'VS Code on Windows connected to WSL (the "WSL" extension)', stores:['wslumd','wslauto','repo'] },
+  mac_app_web:{ group:'web', color:'#8A8478', short:'Web session — from Mac app',
+    label:'Desktop app (Mac) → Claude Code on the web sessions', stores:['repo'],
+    surprise:{t:'Client only — nothing lands on the Mac', d:'The desktop app here is just a launcher; the session runs in a fresh cloud sandbox and reads only the repo’s CLAUDE.md.'} },
+  win_app_web:{ group:'web', color:'#8A8478', short:'Web session — from Windows app',
+    label:'Desktop app (Windows) → Claude Code on the web sessions', stores:['repo'],
+    surprise:{t:'Client only — nothing lands on Windows', d:'The desktop app here is just a launcher; the session runs in a fresh cloud sandbox and reads only the repo’s CLAUDE.md.'} },
+  code_web:{ group:'web', color:'#8A8478', short:'Claude Code on the web',
+    label:'Claude Code on the web — claude.ai/code (fresh cloud sandbox per task)', stores:['repo'],
+    surprise:{t:'Reads only the repo’s CLAUDE.md', d:'No user CLAUDE.md, no auto memory; a fresh cloud sandbox per task. The only thing it remembers is what’s written in the repo.'} },
+  cw_project:{ group:'cw', color:'#8F5C82', short:'Cowork — in a project',
+    label:'Cowork sessions inside a project', stores:['cwmem','repo','prefs'] },
+  cw_standalone:{ group:'cw', color:'#8F5C82', short:'Cowork — one-off',
+    label:'Cowork one-off sessions ("standalone") — keeps nothing afterward', stores:['repo','prefs'],
+    surprise:{t:'Keeps nothing afterward', d:'One-off Cowork sessions still read CLAUDE.md and your Instructions, but remember nothing once the session ends.'} },
+};
+
+const GROUPS = [
+  { id:'chat', name:'Claude chat', color:'#4A6B8F', ctx:['ch_standalone','ch_project'] },
+  { id:'mac',  name:'Claude Code · Mac', color:'#5B6B7F', ctx:['mac_app_local','mac_cli','mac_vscode'] },
+  { id:'win',  name:'Claude Code · Windows', color:'#B06A4F', ctx:['win_app_local','win_cli_native','win_vscode_local'] },
+  { id:'wsl',  name:'Claude Code · WSL', color:'#54805C', ctx:['win_app_rc_wsl','win_cli_wsl','win_vscode_wsl'] },
+  { id:'web',  name:'Claude Code · web', color:'#8A8478', ctx:['mac_app_web','win_app_web','code_web'] },
+  { id:'cw',   name:'Claude Cowork', color:'#8F5C82', ctx:['cw_project','cw_standalone'] },
+];
+
+// Board layout: which stores live in each home region, in order.
+const BOARD = [
+  { home:'account', cls:'r-account', stores:['chatmem','prefs','projmem'] },
+  { home:'repo',    cls:'r-repo',    stores:['repo'] },
+  { home:'web',     cls:'r-web',     stores:[] },
+  { home:'mac',     cls:'r-mac',     stores:['macumd','macauto'] },
+  { home:'windows', cls:'r-windows', stores:['winumd','winauto'] },
+  { home:'wsl',     cls:'r-wsl',     stores:['wslumd','wslauto'] },
+  { home:'cowork',  cls:'r-cowork',  stores:['cwmem'] },
+];
+
+const IMPLIES = { win_app_rc_wsl:'win_cli_wsl' };
+
+/* ========================= state ========================= */
+const selected = new Set();      // context ids
+let focus = null;                // {type:'context'|'store'|'trace', id, ctx?}
+
+const $ = s => document.querySelector(s);
+const el = (t, c) => { const e = document.createElement(t); if (c) e.className = c; return e; };
+
+/* ========================= derived ========================= */
+function selCtx(){ return [...selected]; }
+function touchedBy(storeId){ return selCtx().filter(c => CONTEXTS[c].stores.includes(storeId)); }
+function activeStores(){
+  const s = new Set();
+  selCtx().forEach(c => CONTEXTS[c].stores.forEach(st => s.add(st)));
+  return s;
+}
+// which board stores does a context connect to
+function ctxStores(c){ return CONTEXTS[c].stores.filter(s => STORES[s]); }
+
+/* ========================= board (built once) ========================= */
+function buildBoard(){
+  const board = $('#board');
+  board.innerHTML = '';
+  BOARD.forEach(reg => {
+    const h = HOMES[reg.home];
+    const sec = el('section', 'region ' + reg.cls);
+    sec.dataset.home = reg.home;
+    const head = el('header');
+    const rn = el('span','rn'); rn.textContent = h.name; head.appendChild(rn);
+    if (h.path){ const p = el('span','rs rpath'); p.innerHTML = '<span class="mono">'+esc(h.path)+'</span>'; head.appendChild(p); }
+    else if (h.sub){ const s = el('span','rs'); s.textContent = h.sub; head.appendChild(s); }
+    sec.appendChild(head);
+
+    if (reg.home === 'web'){
+      const note = el('div','webnote');
+      note.textContent = 'Fresh cloud sandbox per task. Nothing persists here — web sessions read only the repo’s CLAUDE.md.';
+      sec.appendChild(note);
+      const w = el('span','warnbadge live'); w.textContent = '⚠'; w.title = 'A surprise lives here';
+      sec.appendChild(w);
+      sec.addEventListener('click', () => setFocus({type:'store', id:'__web'}));
+      board.appendChild(sec);
+      return;
+    }
+    const wrap = el('div','stores');
+    reg.stores.forEach(sid => {
+      const st = STORES[sid];
+      const card = el('div','store'); card.id = 'store-' + sid;
+      card.style.borderLeftColor = h.color;
+      const sn = el('div','sn'); sn.textContent = st.name; card.appendChild(sn);
+      const sm = el('div','sm'); sm.textContent = shortInOut(st); card.appendChild(sm);
+      const tb = el('div','touched'); tb.id = 'touched-' + sid; card.appendChild(tb);
+      if (st.surprise){
+        const w = el('span','warnbadge'); w.textContent = '⚠'; w.title = st.surprise.t;
+        card.appendChild(w);
+      }
+      card.addEventListener('click', () => setFocus({type:'store', id:sid}));
+      wrap.appendChild(card);
+    });
+    sec.appendChild(wrap);
+    board.appendChild(sec);
+  });
+}
+function shortInOut(st){
+  // a compact one-liner for the card face
+  const map = {
+    across:'remembered across projects', within:'kept to one project',
+  };
+  return map[st.scope];
+}
+
+/* ========================= board state (per selection) ========================= */
+function updateBoard(){
+  const active = activeStores();
+  BOARD.forEach(reg => {
+    const sec = $('.'+reg.cls);
+    if (reg.home === 'web'){
+      const anyWeb = selCtx().some(c => CONTEXTS[c].group === 'web');
+      sec.classList.toggle('dim', !anyWeb && selected.size > 0 ? true : (selected.size>0 ? !anyWeb : false));
+      sec.classList.toggle('dim', selected.size > 0 && !anyWeb);
+      return;
+    }
+    const regActive = reg.stores.some(s => active.has(s));
+    sec.classList.toggle('dim', selected.size > 0 && !regActive);
+    reg.stores.forEach(sid => {
+      const card = $('#store-' + sid);
+      const on = active.has(sid);
+      card.classList.toggle('off', selected.size > 0 && !on);
+      card.classList.toggle('on', on);
+      const tb = $('#touched-' + sid);
+      tb.innerHTML = '';
+      const who = touchedBy(sid);
+      if (who.length){
+        who.forEach(c => { const d = el('span','cdot'); d.style.background = CONTEXTS[c].color; d.title = CONTEXTS[c].short; tb.appendChild(d); });
+      } else if (selected.size > 0){
+        const n = el('span','none'); n.textContent = 'not in your selection'; tb.appendChild(n);
+      }
+    });
+  });
+  // selection outline
+  document.querySelectorAll('.store.sel').forEach(e => e.classList.remove('sel'));
+  if (focus && focus.type === 'store' && focus.id !== '__web'){
+    const c = $('#store-' + focus.id); if (c) c.classList.add('sel');
+  }
+}
+
+/* ========================= rail ========================= */
+function buildRail(){
+  const list = $('#raillist');
+  list.innerHTML = '';
+  if (selected.size === 0){
+    const e = el('div','railempty');
+    e.textContent = 'No contexts yet. Press “＋ Add” to pick a way you use Claude — the map lights up as you go.';
+    list.appendChild(e);
+    return;
+  }
+  // keep a stable order following GROUPS/CONTEXTS declaration
+  const order = Object.keys(CONTEXTS).filter(c => selected.has(c));
+  order.forEach(c => {
+    const ctx = CONTEXTS[c];
+    const row = el('div','railrow'); row.style.borderLeftColor = ctx.color; row.id = 'ctx-' + c;
+    if (focus && focus.type === 'context' && focus.id === c) row.classList.add('sel');
+    const dot = el('span','cdot'); dot.style.background = ctx.color; row.appendChild(dot);
+    const rl = el('span','rl'); rl.textContent = ctx.short; row.appendChild(rl);
+    if (ctx.surprise){ const w = el('span','warn'); w.textContent = '⚠'; w.title = ctx.surprise.t; row.appendChild(w); }
+    const cnt = el('span','cnt'); cnt.textContent = ctxStores(c).length; cnt.title = 'stores touched'; row.appendChild(cnt);
+    const rm = el('button','rm'); rm.textContent = '×'; rm.title = 'Remove';
+    rm.addEventListener('click', ev => { ev.stopPropagation(); toggleContext(c, false); });
+    row.appendChild(rm);
+    row.addEventListener('click', () => setFocus({type:'context', id:c}));
+    list.appendChild(row);
+  });
+}
+
+/* ========================= picker ========================= */
+function buildPicker(){
+  const p = $('#picker');
+  p.innerHTML = '';
+  GROUPS.forEach(g => {
+    const h = el('div','pgrp');
+    const d = el('span','cdot'); d.style.background = g.color; h.appendChild(d);
+    const t = document.createTextNode(g.name); h.appendChild(t);
+    p.appendChild(h);
+    g.ctx.forEach(c => {
+      const ctx = CONTEXTS[c];
+      const opt = el('label','popt');
+      const cb = el('input'); cb.type = 'checkbox'; cb.checked = selected.has(c); cb.dataset.c = c;
+      cb.addEventListener('change', () => toggleContext(c, cb.checked));
+      opt.appendChild(cb);
+      const span = el('span');
+      span.innerHTML = esc(ctx.short) + '<span class="sub">' + esc(ctx.label) + '</span>';
+      opt.appendChild(span);
+      p.appendChild(opt);
+    });
+  });
+  const close = el('div','pickclose');
+  const b = el('button','addbtn'); b.textContent = 'Done'; b.style.width = '100%';
+  b.addEventListener('click', closePicker);
+  close.appendChild(b); p.appendChild(close);
+}
+function openPicker(){ buildPicker(); $('#picker').classList.add('open'); }
+function closePicker(){ $('#picker').classList.remove('open'); }
+function togglePicker(){ $('#picker').classList.contains('open') ? closePicker() : openPicker(); }
+
+function toggleContext(c, on){
+  if (on){
+    selected.add(c);
+    if (IMPLIES[c]) selected.add(IMPLIES[c]);
+  } else {
+    selected.delete(c);
+    // releasing a host CLI releases the RC context that implies it
+    for (const [rc, host] of Object.entries(IMPLIES)) if (host === c) selected.delete(rc);
+    if (focus && focus.type === 'context' && focus.id === c) focus = null;
+  }
+  // sync picker checkboxes if open
+  document.querySelectorAll('#picker input[type=checkbox]').forEach(cb => { cb.checked = selected.has(cb.dataset.c); });
+  render();
+}
+
+/* ========================= traces ========================= */
+function drawTraces(){
+  const svg = $('#traces');
+  svg.innerHTML = '';
+  if (window.matchMedia('(max-width:860px)').matches) return;
+  const stage = $('#stage');
+  const sb = stage.getBoundingClientRect();
+  svg.setAttribute('viewBox', '0 0 ' + sb.width + ' ' + sb.height);
+  const anchorR = id => { const e = document.getElementById(id); if (!e) return null;
+    const r = e.getBoundingClientRect(); return { x:r.right - sb.left, y:r.top - sb.top + r.height/2 }; };
+  const anchorL = id => { const e = document.getElementById(id); if (!e) return null;
+    const r = e.getBoundingClientRect(); return { x:r.left - sb.left, y:r.top - sb.top + r.height/2 }; };
+
+  const focusPaths = [];
+  selCtx().forEach(c => {
+    const a = anchorR('ctx-' + c); if (!a) return;
+    const ctx = CONTEXTS[c];
+    ctxStores(c).forEach(sid => {
+      const b = anchorL('store-' + sid); if (!b) return;
+      const dx = Math.max(40, (b.x - a.x) * 0.42);
+      const d = 'M ' + a.x + ' ' + a.y + ' C ' + (a.x + dx) + ' ' + a.y + ' ' + (b.x - dx) + ' ' + b.y + ' ' + b.x + ' ' + b.y;
+      const col = ctx.color;
+      // determine highlight
+      let hi = true, dim = false;
+      if (focus){
+        if (focus.type === 'context') { hi = focus.id === c; }
+        else if (focus.type === 'store') { hi = focus.id === sid; }
+        else if (focus.type === 'trace') { hi = focus.id === sid && focus.ctx === c; }
+        dim = !hi;
+      }
+      const hit = document.createElementNS('http://www.w3.org/2000/svg','path');
+      hit.setAttribute('d', d); hit.setAttribute('class','hit');
+      hit.addEventListener('click', () => setFocus({type:'trace', id:sid, ctx:c}));
+      const wire = document.createElementNS('http://www.w3.org/2000/svg','path');
+      wire.setAttribute('d', d);
+      wire.setAttribute('class', 'wire' + (hi ? ' anim' : ''));
+      wire.setAttribute('stroke', col);
+      wire.setAttribute('stroke-width', hi ? 2.4 : 1.1);
+      wire.setAttribute('stroke-opacity', dim ? 0.17 : (focus ? 0.92 : 0.38));
+      const node = { hit, wire, hi };
+      if (hi) focusPaths.push(node); else { svg.appendChild(hit); svg.appendChild(wire); }
+    });
+  });
+  // draw highlighted on top
+  focusPaths.forEach(n => { svg.appendChild(n.hit); svg.appendChild(n.wire); });
+}
+
+/* ========================= sync headline ========================= */
+function computeSync(){
+  const ctxs = selCtx();
+  const n = ctxs.length;
+  const cover = {}; // store -> [ctx]
+  ctxs.forEach(c => CONTEXTS[c].stores.forEach(s => { (cover[s] = cover[s] || []).push(c); }));
+  const inSync = [], split = [];
+  for (const [s, who] of Object.entries(cover)) (who.length === n ? inSync : split).push([s, who]);
+  const notes = [];
+  if (n === 1) notes.push('Only one context selected — nothing to sync across yet.');
+  if (cover.repo) notes.push('CLAUDE.md counts as in sync only if these contexts open the same repo/project folder.');
+  const cwSel = ctxs.some(c => CONTEXTS[c].group === 'cw');
+  const chatSel = ctxs.some(c => CONTEXTS[c].group === 'chat');
+  if (cwSel && chatSel) notes.push(‘Memory from chat history is loaded only into standalone chats — it doesn’t carry into Projects or Cowork; only Instructions for Claude spans both.’);
+  return { n, inSync, split, notes, cover };
+}
+function storeName(s){ return STORES[s] ? STORES[s].name : s; }
+function renderSync(){
+  const box = $('#sync');
+  const { n, inSync, split, notes } = computeSync();
+  if (n === 0){
+    box.innerHTML = '<span class="hd">Watching 0 contexts.</span> Add ways you use Claude to see what stays in sync and what is kept separate.';
+    return;
+  }
+  const insyncTxt = inSync.length
+    ? inSync.map(([s]) => esc(storeName(s))).join(', ')
+    : (n === 1 ? 'nothing to compare yet' : 'nothing is shared by all ' + n);
+  const splitTxt = split.length
+    ? split.length + (split.length === 1 ? ' store read by only some' : ' stores each read by only some of them')
+    : 'nothing';
+  let html = '<span class="hd">Across your ' + n + ' selected context' + (n>1?'s':'') + ':</span> ';
+  html += '<b class="good">In sync:</b> ' + insyncTxt + ' <span class="sep">·</span> ';
+  html += '<b class="split">Kept separate:</b> ' + splitTxt + '.';
+  html += notes.map(nt => '<span class="note">' + esc(nt) + '</span>').join('');
+  box.innerHTML = html;
+}
+
+/* ========================= inspector ========================= */
+function ctxChip(c){
+  return '<button class="chip" data-ctx="'+c+'"><span class="cdot" style="background:'+CONTEXTS[c].color+'"></span>'+esc(CONTEXTS[c].short)+'</button>';
+}
+function storeChip(s){
+  const col = HOMES[STORES[s].home].color;
+  return '<button class="chip" data-store="'+s+'"><span class="cdot" style="background:'+col+'"></span>'+esc(STORES[s].name)+'</button>';
+}
+function syncStatusHTML(sid){
+  const who = touchedBy(sid);
+  const n = selected.size;
+  if (n === 0) return '<span class="syncline">No contexts selected yet.</span>';
+  if (who.length === 0) return '<span class="syncline">Nothing in your selection touches this store.</span>';
+  if (who.length === n && n > 1) return '<span class="syncline good"><b>In sync across your selection</b> — every selected context reads and writes the same store.</span>';
+  if (n === 1) return '<span class="syncline">Touched by your one selected context. With a single context there’s nothing to sync across yet.</span>';
+  return '<span class="syncline split"><b>Kept separate</b> — only in: ' + who.map(c => esc(CONTEXTS[c].short)).join(', ') + '.</span>';
+}
+function field(label, valHTML, cls){
+  return '<div class="ifield '+(cls||'')+'"><div class="fl">'+esc(label)+'</div><div class="fv">'+valHTML+'</div></div>';
+}
+function inspectorShell(inner){
+  const closeMobile = '<button class="iclose" id="iclose" title="Close">×</button>';
+  return '<div class="ihandle"></div>' + closeMobile + inner;
+}
+function renderInspector(){
+  const box = $('#inspector');
+  if (!focus){
+    box.innerHTML = '<div class="insp-empty"><b>Click anything to inspect it.</b>Tap a store on the board, a context in your selection, or a connecting trace. You’ll get its official name, what gets in, how it comes back out, who touches it, and how to act on it.</div>';
+    setSheet(false);
+    return;
+  }
+  let inner = '';
+  if (focus.type === 'store' && focus.id === '__web'){
+    inner = webInspector();
+  } else if (focus.type === 'store'){
+    inner = storeInspector(focus.id, null);
+  } else if (focus.type === 'trace'){
+    inner = storeInspector(focus.id, focus.ctx);
+  } else if (focus.type === 'context'){
+    inner = contextInspector(focus.id);
+  }
+  box.innerHTML = inspectorShell(inner);
+  wireInspector();
+  setSheet(true);
+}
+function storeInspector(sid, viaCtx){
+  const st = STORES[sid];
+  const home = HOMES[st.home];
+  let h = '';
+  h += '<div class="kicker" style="color:'+home.color+'">'+esc(home.name)+(home.path?' · <span class="mono">'+esc(home.path)+'</span>':(home.sub?' · '+esc(home.sub):''))+'</div>';
+  h += '<h2>'+esc(st.name)+'</h2>';
+  h += '<div class="isub"><span class="scopetag">'+(st.scope==='across'?'remembered across projects/repos':'kept to one project/repo')+'</span></div>';
+  if (viaCtx){
+    h += '<div class="isub" style="margin-top:-6px">Connection from <b>'+esc(CONTEXTS[viaCtx].short)+'</b> → '+esc(st.name)+'</div>';
+  }
+  if (st.surprise){
+    h += '<div class="surprise"><span class="st">⚠ '+esc(st.surprise.t)+'</span>'+esc(st.surprise.d)+'</div>';
+  }
+  h += field('What gets in', esc(st.inn));
+  h += field('How it comes back out', esc(st.out));
+  const who = touchedBy(sid);
+  h += field('Who in your selection touches it', who.length ? '<div class="chips">'+who.map(ctxChip).join('')+'</div>' : '<span class="chip none">No one in your current selection</span>');
+  h += field('Sync status', syncStatusHTML(sid));
+  if (st.act) h += field('Act on it', '<b>'+esc(st.act.label)+'</b> — '+esc(st.act.text), 'act');
+  return h;
+}
+function webInspector(){
+  const home = HOMES.web;
+  let h = '';
+  h += '<div class="kicker" style="color:'+home.color+'">'+esc(home.name)+' · '+esc(home.sub)+'</div>';
+  h += '<h2>Fresh cloud sandbox per task</h2>';
+  h += '<div class="surprise"><span class="st">⚠ Nothing lands here</span>Claude Code on the web has no home of its own. Each task gets a fresh cloud sandbox that reads only the repo’s CLAUDE.md — no user CLAUDE.md, no auto memory.</div>';
+  h += field('What gets in', 'The repo’s CLAUDE.md, read at session start.');
+  h += field('How it comes back out', 'The session can update CLAUDE.md by saving changes to the project. Everything else in the sandbox is discarded when the task ends.');
+  const webCtx = selCtx().filter(c => CONTEXTS[c].group === 'web');
+  h += field('Who in your selection lands here', webCtx.length ? '<div class="chips">'+webCtx.map(ctxChip).join('')+'</div>' : '<span class="chip none">No web contexts selected</span>');
+  h += field('The one store it uses', '<div class="chips">'+storeChip('repo')+'</div>');
+  return h;
+}
+function contextInspector(c){
+  const ctx = CONTEXTS[c];
+  const g = GROUPS.find(x => x.id === ctx.group);
+  let h = '';
+  h += '<div class="kicker" style="color:'+ctx.color+'">'+esc(g?g.name:ctx.group)+'</div>';
+  h += '<h2>'+esc(ctx.short)+'</h2>';
+  h += '<div class="isub">'+esc(ctx.label)+'</div>';
+  if (ctx.surprise){
+    h += '<div class="surprise"><span class="st">⚠ '+esc(ctx.surprise.t)+'</span>'+esc(ctx.surprise.d)+'</div>';
+  }
+  const stores = ctxStores(c);
+  h += field('Memory it touches', stores.length ? '<div class="chips">'+stores.map(storeChip).join('')+'</div>' : '<span class="chip none">No persistent stores</span>');
+  const across = stores.filter(s => STORES[s].scope === 'across').map(storeName);
+  const within = stores.filter(s => STORES[s].scope === 'within').map(storeName);
+  h += field('Remembered across projects', across.length ? esc(across.join(', ')) : '<span style="color:var(--muted)">nothing</span>');
+  h += field('Kept to one project', within.length ? esc(within.join(', ')) : '<span style="color:var(--muted)">nothing</span>');
+  if (IMPLIES[c]) h += field('Implies', esc(CONTEXTS[IMPLIES[c]].short) + ' — selecting this selects that too.');
+  return h;
+}
+function wireInspector(){
+  const cl = $('#iclose'); if (cl) cl.addEventListener('click', () => setFocus(null));
+  document.querySelectorAll('#inspector .chip[data-ctx]').forEach(b =>
+    b.addEventListener('click', () => setFocus({type:'context', id:b.dataset.ctx})));
+  document.querySelectorAll('#inspector .chip[data-store]').forEach(b =>
+    b.addEventListener('click', () => setFocus({type:'store', id:b.dataset.store})));
+}
+function setSheet(open){
+  // only meaningful on mobile; desktop inspector is always visible
+  if (window.matchMedia('(max-width:860px)').matches){
+    $('#inspector').classList.toggle('open', open && !!focus);
+    $('#scrim').classList.toggle('show', open && !!focus);
+  } else {
+    $('#inspector').classList.remove('open');
+    $('#scrim').classList.remove('show');
+  }
+}
+
+/* ========================= focus + render ========================= */
+function setFocus(f){ focus = f; render(); }
+function render(){
+  buildRail();
+  updateBoard();
+  renderSync();
+  renderInspector();
+  drawTraces();
+}
+
+/* ========================= util ========================= */
+function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+/* ========================= wire-up ========================= */
+$('#addbtn').addEventListener('click', e => { e.stopPropagation(); togglePicker(); });
+document.addEventListener('click', e => {
+  const p = $('#picker');
+  if (p.classList.contains('open') && !p.contains(e.target) && e.target.id !== 'addbtn') closePicker();
+});
+$('#scrim').addEventListener('click', () => setFocus(null));
+window.addEventListener('resize', () => { drawTraces(); setSheet(!!focus); });
+// Redraw traces whenever the stage is resized (covers the screenshot harness
+// setting the viewport after load, orientation changes, and layout reflow).
+if (window.ResizeObserver){
+  let firstRO = true;
+  new ResizeObserver(() => { if (firstRO){ firstRO = false; return; } drawTraces(); setSheet(!!focus); }).observe($('#stage'));
+}
+
+/* ========================= init ========================= */
+buildBoard();
+
+const DEMO = /(?:\?|&)demo(?:&|=|$)/.test(location.search) || location.search.indexOf('demo') !== -1;
+if (DEMO){
+  ['ch_standalone','ch_project','mac_cli','win_cli_native','win_cli_wsl','code_web','cw_project'].forEach(c => {
+    selected.add(c); if (IMPLIES[c]) selected.add(IMPLIES[c]);
+  });
+  focus = { type:'store', id:'wslauto' }; // a surprising item (WSL side is separate; machine-local auto memory)
+}
+render();
+
+requestAnimationFrame(() => { drawTraces(); requestAnimationFrame(() => { drawTraces(); window.__PROTO_READY = true; }); });
+</script>
+</body>
+</html>

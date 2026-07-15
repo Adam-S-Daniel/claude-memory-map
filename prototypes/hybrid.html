@@ -1,0 +1,1192 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Where Claude's memory lives</title>
+<style>
+  :root {
+    --paper:#FDFBF7; --ink:#3D3A34; --muted:#6B675E; --line:#E4DFD4;
+    --blue:#4A6B8F; --amber:#9A6F33; --wsl:#54805C; --win:#B06A4F;
+    --mac:#5B6B7F; --plum:#8F5C82; --web:#8A8478;
+  }
+  * { box-sizing: border-box; }
+  html, body { height:100%; margin:0; padding:0; overflow:hidden; }
+  body {
+    background:var(--paper); color:var(--ink);
+    font-family: Helvetica, Arial, sans-serif;
+    display:flex; flex-direction:column; width:100%;
+  }
+  h1, h2 { font-family: Georgia, 'Times New Roman', serif; font-weight:normal; margin:0; }
+  code {
+    font-family: Menlo, Consolas, monospace; font-size:0.85em;
+    background:#F3EFE6; border-radius:4px; padding:1px 5px;
+  }
+  button { font: inherit; }
+
+  /* ---------- header ---------- */
+  .topbar { flex:none; padding:14px 18px 10px; border-bottom:1px solid var(--line); }
+  .topbar h1 { font-size:20px; }
+  .topbar .subtitle { font-size:12px; color:var(--muted); margin:4px 0 0; }
+
+  /* ---------- chip tray ---------- */
+  .chip-tray {
+    flex:none; display:flex; flex-wrap:wrap; align-items:flex-start;
+    gap:12px 22px; padding:10px 18px; border-bottom:1px solid var(--line);
+  }
+  .group-cluster { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .dot { width:8px; height:8px; border-radius:50%; display:inline-block; flex:none; }
+  .group-label {
+    font-size:11px; letter-spacing:0.06em; text-transform:uppercase;
+    color:var(--muted); display:flex; align-items:center; gap:5px; white-space:nowrap;
+  }
+  .group-chips { display:flex; gap:6px; flex-wrap:wrap; }
+  .chip {
+    display:inline-flex; align-items:center; gap:4px; min-height:34px;
+    padding:0 12px; border:1px solid var(--line); border-radius:999px;
+    background:#fff; color:var(--ink); font-size:12.5px; cursor:pointer; white-space:nowrap;
+  }
+  .chip .chip-check { display:none; font-size:11px; }
+  .chip.selected .chip-check { display:inline; }
+  .chip.selected { font-weight:bold; }
+
+  /* ---------- sync strip ---------- */
+  .sync-strip { flex:none; padding:9px 18px; border-bottom:1px solid var(--line); background:#fff; font-size:12.5px; line-height:1.6; }
+  .sync-strip .sync-label-good { color:#54805C; }
+  .sync-strip .sync-label-bad { color:#B06A4F; }
+  .sync-name { cursor:pointer; text-decoration:underline; text-decoration-style:dotted; text-underline-offset:2px; }
+  .sync-more { color:var(--muted); }
+  .sync-caveat { display:block; font-style:italic; color:var(--muted); font-size:11.5px; margin-top:2px; }
+  .sync-none { font-style:italic; color:var(--muted); }
+
+  /* ---------- stage ---------- */
+  .stage { position:relative; flex:1 1 auto; min-height:0; overflow:hidden; }
+  #graph { position:absolute; inset:0; width:100%; height:100%; display:block; touch-action:none; }
+  #badgeLayer { position:absolute; inset:0; pointer-events:none; z-index:5; }
+  .badge {
+    position:absolute; transform:translate(-50%,-100%);
+    background:#FFF8EE; border:1px solid #C9A36B; color:#9A6F33;
+    font-size:11px; padding:6px 10px; border-radius:999px;
+    box-shadow:0 2px 6px rgba(0,0,0,0.12); pointer-events:auto; cursor:pointer;
+    white-space:nowrap; max-width:230px; overflow:hidden; text-overflow:ellipsis;
+  }
+  .badge-warn { margin-right:2px; }
+  #emptyState {
+    position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    color:var(--muted); font-size:14px; text-align:center; padding:24px; pointer-events:none;
+  }
+
+  /* ---------- inspector ---------- */
+  #inspector {
+    position:absolute; top:0; right:0; bottom:0; width:340px; max-width:100%;
+    background:#fff; border-left:1px solid var(--line);
+    box-shadow:-4px 0 16px rgba(0,0,0,0.06);
+    transform:translateX(100%); transition:transform 0.22s ease;
+    overflow-y:auto; z-index:10; padding:20px 18px;
+  }
+  #inspector.open { transform:translateX(0); }
+  .inspector-handle { display:none; }
+  .inspector-close {
+    position:absolute; top:8px; right:8px; width:36px; height:36px;
+    border:none; background:none; font-size:20px; line-height:1;
+    cursor:pointer; color:var(--muted); border-radius:8px;
+  }
+  .inspector-close:hover { background:#F3EFE6; }
+
+  .insp-kicker {
+    font-size:11px; letter-spacing:0.05em; text-transform:uppercase;
+    color:var(--muted); display:flex; align-items:center; gap:6px; margin:2px 0 8px;
+  }
+  .insp-kicker-warn { color:#9A6F33; }
+  .insp-heading { font-size:19px; margin:0 0 8px; padding-right:26px; }
+  .insp-heading-surprise { font-size:16px; line-height:1.4; }
+  .insp-scope { font-size:12px; color:var(--muted); margin:0 0 14px; font-style:italic; }
+  .insp-section { margin-bottom:16px; }
+  .insp-label {
+    font-size:11px; font-weight:bold; text-transform:uppercase;
+    letter-spacing:0.04em; color:var(--muted); margin-bottom:5px;
+  }
+  .insp-section p { margin:0; font-size:13px; line-height:1.5; }
+  .insp-list { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:7px; }
+  .insp-list li { display:flex; align-items:center; gap:7px; font-size:13px; cursor:pointer; }
+  .insp-list li:hover { text-decoration:underline; }
+  .insp-empty { color:var(--muted); font-size:12.5px; font-style:italic; }
+  .insp-callout {
+    margin-top:4px; background:#FFF8EE; border:1px solid #C9A36B; border-radius:10px;
+    padding:10px 12px; font-size:12.5px; color:#5b4a2c; cursor:pointer; line-height:1.5;
+  }
+  .sync-good-text { color:#54805C; font-weight:bold; margin:0; font-size:13px; }
+  .sync-bad-text { color:#B06A4F; font-weight:bold; margin:0; font-size:13px; }
+  .insp-caveat { font-style:italic; color:var(--muted); font-size:11.5px; margin:5px 0 0; }
+
+  /* ---------- mobile (<=820px) ---------- */
+  @media (max-width: 820px) {
+    .topbar { padding:10px 14px 8px; }
+    .topbar h1 { font-size:17px; }
+
+    .chip-tray {
+      flex-wrap:nowrap; overflow-x:auto; -webkit-overflow-scrolling:touch;
+      padding:8px 12px; gap:16px;
+    }
+    .group-cluster { flex:none; }
+    .chip { min-height:44px; }
+
+    .sync-strip { padding:8px 12px; }
+
+    #inspector {
+      top:auto; left:0; right:0; bottom:0; width:100%;
+      max-height:60vh; border-left:none; border-top:1px solid var(--line);
+      border-radius:16px 16px 0 0; transform:translateY(100%);
+      padding:8px 16px 20px; box-shadow:0 -6px 20px rgba(0,0,0,0.14);
+    }
+    #inspector.open { transform:translateY(0); }
+    .inspector-handle {
+      display:block; width:36px; height:4px; border-radius:2px;
+      background:var(--line); margin:2px auto 12px;
+    }
+    .inspector-close { width:44px; height:44px; top:2px; right:2px; }
+    .badge { padding:10px 14px; font-size:12px; }
+  }
+</style>
+</head>
+<body>
+<div class="app" style="display:flex; flex-direction:column; height:100%; width:100%;">
+
+  <header class="topbar">
+    <h1>Where Claude&rsquo;s memory lives</h1>
+    <p class="subtitle">Toggle the ways you use Claude &mdash; shared stores pull them together, silos drift apart.</p>
+  </header>
+
+  <div class="chip-tray" id="chipTray"></div>
+
+  <div class="sync-strip" id="syncStrip"></div>
+
+  <div class="stage" id="stage">
+    <canvas id="graph"></canvas>
+    <div id="badgeLayer"></div>
+    <div id="emptyState">Nothing on the map yet. Toggle a way you use Claude above.</div>
+    <aside id="inspector">
+      <div class="inspector-handle"></div>
+      <button type="button" class="inspector-close" id="inspectorClose" aria-label="Close">&times;</button>
+      <div id="inspectorContent"></div>
+    </aside>
+  </div>
+
+</div>
+
+<script>
+'use strict';
+
+/* ============================================================
+   DATA MODEL (verbatim facts from prototypes/SPEC.md)
+   ============================================================ */
+
+var COLORS = {
+  blue:'#4A6B8F', amber:'#9A6F33', wsl:'#54805C', win:'#B06A4F',
+  mac:'#5B6B7F', plum:'#8F5C82', web:'#8A8478', ink:'#3D3A34'
+};
+
+var GROUPS = {
+  chat: { label:'Claude chat',        colorVar:'blue', angle:200 },
+  mac:  { label:'Claude Code · Mac',     colorVar:'mac',  angle:20  },
+  win:  { label:'Claude Code · Windows', colorVar:'win',  angle:80  },
+  wsl:  { label:'Claude Code · WSL',     colorVar:'wsl',  angle:140 },
+  web:  { label:'Claude Code · web',     colorVar:'web',  angle:320 },
+  cw:   { label:'Claude Cowork',      colorVar:'plum', angle:260 }
+};
+var GROUP_ORDER = ['chat','mac','win','wsl','web','cw'];
+
+var CONTEXTS = {
+  ch_standalone:    { chip:'Standalone chats',           full:'Chats not inside a Project (“standalone” chats)', group:'chat', stores:['chatmem','prefs'] },
+  ch_project:       { chip:'Project chats',              full:'Chats inside a Project', group:'chat', stores:['projmem','prefs'] },
+  mac_app_local:    { chip:'Desktop app',                full:'Claude Desktop app — local sessions (Mac)', group:'mac', stores:['macumd','macauto','repo'] },
+  mac_cli:          { chip:'CLI',                        full:'CLI in the terminal (Mac)', group:'mac', stores:['macumd','macauto','repo'] },
+  mac_vscode:       { chip:'VS Code',                     full:'VS Code with the Claude Code extension (Mac)', group:'mac', stores:['macumd','macauto','repo'] },
+  win_app_local:    { chip:'Desktop app',                full:'Claude Desktop app — local sessions (Windows side)', group:'win', stores:['winumd','winauto','repo'] },
+  win_cli_native:   { chip:'CLI (native)',               full:'CLI in Windows — native', group:'win', stores:['winumd','winauto','repo'] },
+  win_vscode_local: { chip:'VS Code (local)',            full:'VS Code — local, not WSL (Windows)', group:'win', stores:['winumd','winauto','repo'] },
+  win_app_rc_wsl:   { chip:'Remote Control (/rc)',       full:'Desktop app (Windows) remote-controlling a CLI session in WSL (Remote Control, /rc)', group:'wsl', stores:['wslumd','wslauto','repo'] },
+  win_cli_wsl:      { chip:'CLI in WSL',                 full:'CLI in WSL', group:'wsl', stores:['wslumd','wslauto','repo'] },
+  win_vscode_wsl:   { chip:'VS Code → WSL',          full:'VS Code on Windows connected to WSL (the “WSL” extension)', group:'wsl', stores:['wslumd','wslauto','repo'] },
+  mac_app_web:      { chip:'Desktop app (Mac) → web', full:'Desktop app (Mac) → Claude Code on the web sessions', group:'web', stores:['repo'] },
+  win_app_web:      { chip:'Desktop app (Win) → web', full:'Desktop app (Windows) → Claude Code on the web sessions', group:'web', stores:['repo'] },
+  code_web:         { chip:'claude.ai/code',             full:'Claude Code on the web — claude.ai/code (fresh cloud sandbox per task)', group:'web', stores:['repo'] },
+  cw_project:       { chip:'Project sessions',           full:'Cowork sessions inside a project', group:'cw', stores:['cwmem','repo','prefs'] },
+  cw_standalone:    { chip:'One-off sessions',           full:'Cowork one-off sessions (“standalone”) — keeps nothing afterward', group:'cw', stores:['repo','prefs'] }
+};
+
+var STORES = {
+  chatmem: {
+    officialName:'Memory from chat history', graphLabel:'Memory from chat history',
+    home:'On your account', colorVar:'blue',
+    act:'Settings → Memory (“Manage memory” — edits, imports, export; home of the “Generate memory from chat history” toggle).',
+    in:'Chat-history summary (“memory summary”, synthesized daily from standalone chats) + saved facts (“memory edits”, applied immediately when you say “remember this”). Saved facts feed the summary.',
+    out:'Loaded into every new standalone chat.'
+  },
+  prefs: {
+    officialName:'Instructions for Claude', graphLabel:'Instructions for Claude',
+    home:'On your account', colorVar:'blue',
+    act:'Settings → Profile — the free-text “Instructions” box.',
+    in:'You write it — free-text standing instructions.',
+    out:'Anthropic: “Claude will keep these in mind across chats and Cowork within Anthropic’s guidelines.” Applied to every chat and to Cowork sessions.'
+  },
+  projmem: {
+    officialName:'Project memory (“project-scoped memory”)', graphLabel:'Project memory',
+    home:'On your account', colorVar:'blue',
+    act:null,
+    in:'Filled by chatting and by saying “remember this” in that Project.',
+    out:'Recalled in that Project’s chats only. One per claude.ai Project.'
+  },
+  repo: {
+    officialName:'Project notes file — CLAUDE.md (“project instructions”)', graphLabel:'CLAUDE.md (repo)',
+    home:'Saved with the project’s files', colorVar:'amber',
+    act:'Lives at the repo root; travels with the repo. In Cowork, you or Claude writes it (e.g. /init).',
+    in:'You write it (code contexts); in Cowork, you or Claude writes it. Web sessions can update it by saving changes to the project.',
+    out:'Read at session start by whatever opens it. One per repo/project folder.'
+  },
+  macumd: {
+    officialName:'User CLAUDE.md — Mac (“user instructions”)', graphLabel:'User CLAUDE.md · Mac',
+    home:'Mac file system', colorVar:'mac',
+    act:'<code>~/.claude/CLAUDE.md</code> on the Mac.',
+    in:'You write it.',
+    out:'Applies to all projects on this Mac; read at session start.'
+  },
+  winumd: {
+    officialName:'User CLAUDE.md — Windows (“user instructions”)', graphLabel:'User CLAUDE.md · Win',
+    home:'Windows file system', colorVar:'win',
+    act:'<code>C:\\Users\\you\\.claude\\CLAUDE.md</code> on the Windows side.',
+    in:'You write it.',
+    out:'Applies to all projects on the Windows side; read at session start.'
+  },
+  wslumd: {
+    officialName:'User CLAUDE.md — WSL (“user instructions”)', graphLabel:'User CLAUDE.md · WSL',
+    home:'WSL file system', colorVar:'wsl',
+    act:'<code>~/.claude/CLAUDE.md</code> inside WSL.',
+    in:'You write it.',
+    out:'Applies to all projects on the WSL side; read at session start.'
+  },
+  macauto: {
+    officialName:'Auto memory — Mac (Claude’s own notes)', graphLabel:'Auto memory · Mac',
+    home:'Mac file system', colorVar:'mac',
+    act:'Machine-local by default — the <code>autoMemoryDirectory</code> setting can move it into a repo-tracked folder so it travels.',
+    in:'Claude jots notes as it works, incl. “remember this”.',
+    out:'One set per project, on this side only; read at session start.'
+  },
+  winauto: {
+    officialName:'Auto memory — Windows (Claude’s own notes)', graphLabel:'Auto memory · Win',
+    home:'Windows file system', colorVar:'win',
+    act:'Machine-local by default — the <code>autoMemoryDirectory</code> setting can move it into a repo-tracked folder so it travels.',
+    in:'Claude jots notes as it works, incl. “remember this”.',
+    out:'One set per project, on this side only; read at session start.'
+  },
+  wslauto: {
+    officialName:'Auto memory — WSL (Claude’s own notes)', graphLabel:'Auto memory · WSL',
+    home:'WSL file system', colorVar:'wsl',
+    act:'Machine-local by default — the <code>autoMemoryDirectory</code> setting can move it into a repo-tracked folder so it travels.',
+    in:'Claude jots notes as it works, incl. “remember this”.',
+    out:'One set per project, on this side only; read at session start.'
+  },
+  cwmem: {
+    officialName:'Cowork project memory', graphLabel:'Cowork memory',
+    home:'On one computer — Cowork', colorVar:'plum',
+    act:null,
+    in:'Remembers as you work. One per Cowork project, kept on that computer.',
+    out:'Recalled when you reopen that project.'
+  }
+};
+
+var SCOPE_ACROSS = { chatmem:1, prefs:1, macumd:1, winumd:1, wslumd:1 };
+
+var SURPRISE_ORDER = ['s_sides','s_webonly','s_rc','s_oneoff','s_automem','s_disjoint'];
+
+var SURPRISES = {
+  s_sides: {
+    teaser:'separate sides',
+    full:'WSL and native Windows are different sides: separate user CLAUDE.md and separate auto memory, even on the same physical machine.',
+    isVisible: function(){ return hasGroupSelected('win') && hasGroupSelected('wsl'); },
+    anchor: function(){
+      var a = graphNodes.has('winumd') ? 'winumd' : (graphNodes.has('winauto') ? 'winauto' : null);
+      var b = graphNodes.has('wslumd') ? 'wslumd' : (graphNodes.has('wslauto') ? 'wslauto' : null);
+      if (!a || !b) return null;
+      return { kind:'midpoint', a:a, b:b };
+    },
+    related: function(){
+      var items = [];
+      if (graphNodes.has('winumd')) items.push({ type:'store', id:'winumd' });
+      else if (graphNodes.has('winauto')) items.push({ type:'store', id:'winauto' });
+      if (graphNodes.has('wslumd')) items.push({ type:'store', id:'wslumd' });
+      else if (graphNodes.has('wslauto')) items.push({ type:'store', id:'wslauto' });
+      return items;
+    }
+  },
+  s_webonly: {
+    teaser:'reads only CLAUDE.md',
+    full:'Claude Code on the web reads only the repo’s CLAUDE.md — no user CLAUDE.md, no auto memory; fresh cloud sandbox per task.',
+    isVisible: function(){ return hasGroupSelected('web'); },
+    anchor: function(){
+      var id = firstSelectedWebContext();
+      return id ? { kind:'node', a:id } : null;
+    },
+    related: function(){
+      var items = [];
+      var id = firstSelectedWebContext();
+      if (id) items.push({ type:'context', id:id });
+      if (graphNodes.has('repo')) items.push({ type:'store', id:'repo' });
+      return items;
+    }
+  },
+  s_rc: {
+    teaser:'memory stays in WSL',
+    full:'Remote Control (/rc) from the Windows desktop app: the session and its memory stay in WSL (observed).',
+    isVisible: function(){ return selected.has('win_app_rc_wsl'); },
+    anchor: function(){ return graphNodes.has('win_app_rc_wsl') ? { kind:'node', a:'win_app_rc_wsl' } : null; },
+    related: function(){
+      var items = [{ type:'context', id:'win_app_rc_wsl' }];
+      if (graphNodes.has('wslumd')) items.push({ type:'store', id:'wslumd' });
+      if (graphNodes.has('wslauto')) items.push({ type:'store', id:'wslauto' });
+      return items;
+    }
+  },
+  s_oneoff: {
+    teaser:'keeps nothing afterward',
+    full:'One-off Cowork sessions keep nothing afterward — they still read CLAUDE.md and your Instructions.',
+    isVisible: function(){ return selected.has('cw_standalone'); },
+    anchor: function(){ return graphNodes.has('cw_standalone') ? { kind:'node', a:'cw_standalone' } : null; },
+    related: function(){
+      var items = [{ type:'context', id:'cw_standalone' }];
+      if (graphNodes.has('repo')) items.push({ type:'store', id:'repo' });
+      if (graphNodes.has('prefs')) items.push({ type:'store', id:'prefs' });
+      return items;
+    }
+  },
+  s_automem: {
+    teaser:'local by default',
+    full:'Auto memory is machine-local by default; the autoMemoryDirectory setting can move it into the repo so it travels.',
+    isVisible: function(){ return firstAutoStore() !== null; },
+    anchor: function(){
+      var id = firstAutoStore();
+      return id ? { kind:'node', a:id } : null;
+    },
+    related: function(){
+      return ['macauto','winauto','wslauto'].filter(function(id){ return graphNodes.has(id); })
+        .map(function(id){ return { type:'store', id:id }; });
+    }
+  },
+  s_disjoint: {
+    teaser:'disjoint memories',
+    full:'Standalone chats and Project chats have disjoint memories: memory from chat history is loaded only into standalone chats; Project memory only inside its Project. Only “Instructions for Claude” spans both.',
+    isVisible: function(){ return selected.has('ch_standalone') && selected.has('ch_project'); },
+    anchor: function(){
+      return (graphNodes.has('chatmem') && graphNodes.has('projmem')) ? { kind:'midpoint', a:'chatmem', b:'projmem' } : null;
+    },
+    related: function(){
+      var items = [
+        { type:'context', id:'ch_standalone' },
+        { type:'context', id:'ch_project' }
+      ];
+      if (graphNodes.has('chatmem')) items.push({ type:'store', id:'chatmem' });
+      if (graphNodes.has('projmem')) items.push({ type:'store', id:'projmem' });
+      if (graphNodes.has('prefs')) items.push({ type:'store', id:'prefs' });
+      return items;
+    }
+  }
+};
+
+var DEMO_IDS = ['ch_standalone','ch_project','mac_cli','win_cli_native','win_cli_wsl','code_web','cw_project'];
+
+/* ============================================================
+   HELPERS
+   ============================================================ */
+
+function hasGroupSelected(g){
+  for (var id in CONTEXTS){ if (CONTEXTS[id].group === g && selected.has(id)) return true; }
+  return false;
+}
+function firstSelectedWebContext(){
+  if (selected.has('code_web')) return 'code_web';
+  var ids = Object.keys(CONTEXTS);
+  for (var i = 0; i < ids.length; i++){
+    var id = ids[i];
+    if (CONTEXTS[id].group === 'web' && selected.has(id)) return id;
+  }
+  return null;
+}
+function firstAutoStore(){
+  var order = ['macauto','winauto','wslauto'];
+  for (var i = 0; i < order.length; i++){ if (graphNodes.has(order[i])) return order[i]; }
+  return null;
+}
+function hexToRgba(hex, alpha){
+  var h = hex.replace('#','');
+  var r = parseInt(h.substring(0,2),16), g = parseInt(h.substring(2,4),16), b = parseInt(h.substring(4,6),16);
+  return 'rgba(' + r + ',' + g + ',' + b + ',' + alpha + ')';
+}
+function mulberry32(seed){
+  return function(){
+    seed |= 0; seed = (seed + 0x6D2B79F5) | 0;
+    var t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+var rng = mulberry32(0xC0FFEE);
+
+/* ============================================================
+   STATE
+   ============================================================ */
+
+var selected = new Set();          // selected context ids
+var graphNodes = new Map();        // id -> node {id,type,x,y,vx,vy,sx,sy,r,dragging}
+var edges = [];                    // [{a:contextId, b:storeId}]
+var inspectorTarget = null;        // {type, id}
+var badgeEls = {};                 // surpriseId -> DOM el
+var prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+var readyFlag = false;
+
+var W = 0, H = 0;
+var viewScale = 1, viewOffsetX = 0, viewOffsetY = 0;
+var rafHandle = null, forceFrames = 0;
+var pointerState = null;
+
+/* ============================================================
+   DOM REFERENCES
+   ============================================================ */
+
+var chipTrayEl = document.getElementById('chipTray');
+var syncStripEl = document.getElementById('syncStrip');
+var stageEl = document.getElementById('stage');
+var canvas = document.getElementById('graph');
+var ctx = canvas.getContext('2d');
+var badgeLayerEl = document.getElementById('badgeLayer');
+var emptyStateEl = document.getElementById('emptyState');
+var inspectorEl = document.getElementById('inspector');
+var inspectorContentEl = document.getElementById('inspectorContent');
+var inspectorCloseEl = document.getElementById('inspectorClose');
+
+/* ============================================================
+   READINESS
+   ============================================================ */
+
+function markReady(){
+  if (!readyFlag){ readyFlag = true; window.__PROTO_READY = true; }
+}
+setTimeout(markReady, 4000);
+
+/* ============================================================
+   CHIP TRAY
+   ============================================================ */
+
+function buildChipTray(){
+  GROUP_ORDER.forEach(function(gid){
+    var group = GROUPS[gid];
+    var color = COLORS[group.colorVar];
+    var cluster = document.createElement('div');
+    cluster.className = 'group-cluster';
+
+    var label = document.createElement('div');
+    label.className = 'group-label';
+    label.innerHTML = '<span class="dot" style="background:' + color + '"></span>' + group.label;
+    cluster.appendChild(label);
+
+    var chipsWrap = document.createElement('div');
+    chipsWrap.className = 'group-chips';
+    Object.keys(CONTEXTS).forEach(function(cid){
+      if (CONTEXTS[cid].group !== gid) return;
+      var chip = document.createElement('button');
+      chip.type = 'button';
+      chip.className = 'chip';
+      chip.dataset.contextId = cid;
+      chip.innerHTML = '<span class="chip-check">✓</span><span class="chip-label">' + CONTEXTS[cid].chip + '</span>';
+      chip.addEventListener('click', function(){ toggleContext(cid); });
+      chipsWrap.appendChild(chip);
+    });
+    cluster.appendChild(chipsWrap);
+    chipTrayEl.appendChild(cluster);
+  });
+}
+
+function updateChipVisuals(){
+  var chips = chipTrayEl.querySelectorAll('.chip');
+  for (var i = 0; i < chips.length; i++){
+    var chip = chips[i];
+    var cid = chip.dataset.contextId;
+    var on = selected.has(cid);
+    chip.classList.toggle('selected', on);
+    if (on){
+      var color = COLORS[GROUPS[CONTEXTS[cid].group].colorVar];
+      chip.style.background = hexToRgba(color, 0.10);
+      chip.style.borderColor = color;
+    } else {
+      chip.style.background = '';
+      chip.style.borderColor = '';
+    }
+  }
+}
+
+function toggleContext(cid){
+  if (selected.has(cid)){
+    selected.delete(cid);
+    if (cid === 'win_cli_wsl' && selected.has('win_app_rc_wsl')) selected.delete('win_app_rc_wsl');
+  } else {
+    selected.add(cid);
+    if (cid === 'win_app_rc_wsl') selected.add('win_cli_wsl');
+  }
+  updateChipVisuals();
+  rebuildGraph();
+}
+
+/* ============================================================
+   SYNC COMPUTATION + STRIP
+   ============================================================ */
+
+function computeSync(){
+  var ids = Array.from(selected);
+  var total = ids.length;
+  var storeTouchCount = {};
+  ids.forEach(function(cid){
+    CONTEXTS[cid].stores.forEach(function(sid){
+      storeTouchCount[sid] = (storeTouchCount[sid] || 0) + 1;
+    });
+  });
+  var inSync = [], keptSeparate = [];
+  Object.keys(storeTouchCount).forEach(function(sid){
+    var k = storeTouchCount[sid];
+    if (total >= 2 && k === total) inSync.push(sid);
+    else keptSeparate.push({ id:sid, k:k, n:total });
+  });
+  keptSeparate.sort(function(a,b){ return a.k - b.k; });
+  return { total:total, inSync:inSync, keptSeparate:keptSeparate };
+}
+
+function contextsTouchingStore(sid){
+  return Array.from(selected).filter(function(cid){ return CONTEXTS[cid].stores.indexOf(sid) >= 0; });
+}
+
+function storeNameSpan(sid, suffix){
+  return '<span class="sync-name" data-open-store="' + sid + '">' + STORES[sid].graphLabel + (suffix || '') + '</span>';
+}
+
+function renderSyncStrip(){
+  if (selected.size === 0){
+    syncStripEl.style.display = 'none';
+    syncStripEl.innerHTML = '';
+    return;
+  }
+  syncStripEl.style.display = '';
+  var sync = computeSync();
+  var isMobile = window.innerWidth <= 820;
+  var maxShow = isMobile ? 2 : 8;
+
+  var inSyncHtml;
+  if (sync.inSync.length === 0){
+    inSyncHtml = '<span class="sync-none">none yet</span>';
+  } else {
+    var shownIn = sync.inSync.slice(0, maxShow);
+    var restIn = sync.inSync.length - shownIn.length;
+    inSyncHtml = shownIn.map(function(sid){ return storeNameSpan(sid); }).join(', ');
+    if (restIn > 0) inSyncHtml += ' <span class="sync-more">+' + restIn + ' more</span>';
+  }
+
+  var keptHtml;
+  if (sync.keptSeparate.length === 0){
+    keptHtml = '<span class="sync-none">none</span>';
+  } else {
+    var shownKept = sync.keptSeparate.slice(0, maxShow);
+    var restKept = sync.keptSeparate.length - shownKept.length;
+    keptHtml = shownKept.map(function(s){
+      return storeNameSpan(s.id, ' (' + s.k + ' of ' + s.n + ')');
+    }).join(', ');
+    if (restKept > 0) keptHtml += ' <span class="sync-more">+' + restKept + ' more</span>';
+  }
+
+  var caveats = [];
+  if (!isMobile){ // caveats are desktop-only; the mobile strip stays ~2 lines
+    if (sync.total === 1) caveats.push('Only one context selected — nothing to sync across yet.');
+    var repoPresent = sync.inSync.indexOf('repo') >= 0 || sync.keptSeparate.some(function(s){ return s.id === 'repo'; });
+    if (repoPresent && sync.total >= 2) caveats.push('CLAUDE.md counts as in-sync only when the contexts open the same repo/project folder.');
+  }
+
+  var html = '<span class="sync-label-good"><b>In sync across your selection:</b></span> ' + inSyncHtml
+    + ' &nbsp;·&nbsp; <span class="sync-label-bad"><b>Kept separate:</b></span> ' + keptHtml;
+  caveats.forEach(function(c){ html += '<span class="sync-caveat">' + c + '</span>'; });
+  syncStripEl.innerHTML = html;
+}
+
+syncStripEl.addEventListener('click', function(e){
+  var el = e.target.closest ? e.target.closest('[data-open-store]') : null;
+  if (el) openInspector('store', el.dataset.openStore);
+});
+
+/* ============================================================
+   GRAPH BUILD
+   ============================================================ */
+
+function makeContextNode(cid){
+  var group = GROUPS[CONTEXTS[cid].group];
+  var angle = (group.angle * Math.PI) / 180;
+  var radius = 190;
+  var a = angle + (rng() - 0.5) * 0.35;
+  var r = radius + (rng() - 0.5) * 40;
+  return { id:cid, type:'context', x:Math.cos(a) * r, y:Math.sin(a) * r, vx:0, vy:0, sx:0, sy:0, r:9, dragging:false };
+}
+
+function makeStoreNode(sid){
+  var sx = 0, sy = 0, n = 0;
+  selected.forEach(function(cid){
+    if (CONTEXTS[cid].stores.indexOf(sid) >= 0 && graphNodes.has(cid)){
+      var cn = graphNodes.get(cid);
+      sx += cn.x; sy += cn.y; n++;
+    }
+  });
+  if (n === 0) n = 1;
+  var cx = sx / n, cy = sy / n;
+  var jx = (rng() - 0.5) * 30, jy = (rng() - 0.5) * 30;
+  return { id:sid, type:'store', x:cx + jx, y:cy + jy, vx:0, vy:0, sx:0, sy:0, r:13, dragging:false };
+}
+
+function rebuildGraph(){
+  var desiredStores = {};
+  selected.forEach(function(cid){
+    CONTEXTS[cid].stores.forEach(function(sid){ desiredStores[sid] = true; });
+  });
+
+  Array.from(graphNodes.keys()).forEach(function(id){
+    var node = graphNodes.get(id);
+    if (node.type === 'context' && !selected.has(id)) graphNodes.delete(id);
+    if (node.type === 'store' && !desiredStores[id]) graphNodes.delete(id);
+  });
+
+  selected.forEach(function(cid){
+    if (!graphNodes.has(cid)) graphNodes.set(cid, makeContextNode(cid));
+  });
+  Object.keys(desiredStores).forEach(function(sid){
+    if (!graphNodes.has(sid)) graphNodes.set(sid, makeStoreNode(sid));
+  });
+
+  edges = [];
+  selected.forEach(function(cid){
+    CONTEXTS[cid].stores.forEach(function(sid){
+      if (desiredStores[sid]) edges.push({ a:cid, b:sid });
+    });
+  });
+
+  renderSyncStrip();
+  updateSurpriseVisibility();
+  emptyStateEl.style.display = graphNodes.size === 0 ? 'flex' : 'none';
+
+  if (inspectorTarget){
+    var stillValid;
+    if (inspectorTarget.type === 'context') stillValid = selected.has(inspectorTarget.id);
+    else if (inspectorTarget.type === 'store') stillValid = graphNodes.has(inspectorTarget.id);
+    else stillValid = SURPRISES[inspectorTarget.id].isVisible();
+    if (!stillValid) closeInspector(); else renderInspectorContent();
+  }
+
+  if (graphNodes.size === 0){
+    render(true);
+    markReady();
+    return;
+  }
+  if (prefersReducedMotion){
+    reducedMotionSettle();
+  } else {
+    kick(50);
+  }
+}
+
+/* ============================================================
+   FORCE SIMULATION
+   ============================================================ */
+
+var EDGE_REST = 135, SPRING_K = 0.02, REPEL_Q = 3400, CENTER_K = 0.015, DAMPING = 0.86, MAX_SPEED = 14, ENERGY_THRESHOLD = 0.05;
+
+function simStep(){
+  var nodes = Array.from(graphNodes.values());
+  var i, j;
+
+  for (i = 0; i < nodes.length; i++){
+    for (j = i + 1; j < nodes.length; j++){
+      var ni = nodes[i], nj = nodes[j];
+      var dx = nj.x - ni.x, dy = nj.y - ni.y;
+      var distSq = dx * dx + dy * dy + 10;
+      var dist = Math.sqrt(distSq);
+      var force = Math.min(REPEL_Q / distSq, 40);
+      var fx = (force * dx) / dist, fy = (force * dy) / dist;
+      ni.vx -= fx; ni.vy -= fy; nj.vx += fx; nj.vy += fy;
+    }
+  }
+
+  for (i = 0; i < edges.length; i++){
+    var a = graphNodes.get(edges[i].a), b = graphNodes.get(edges[i].b);
+    if (!a || !b) continue;
+    var edx = b.x - a.x, edy = b.y - a.y;
+    var edist = Math.sqrt(edx * edx + edy * edy) || 0.01;
+    var diff = (edist - EDGE_REST) * SPRING_K;
+    var sfx = (diff * edx) / edist, sfy = (diff * edy) / edist;
+    a.vx += sfx; a.vy += sfy; b.vx -= sfx; b.vy -= sfy;
+  }
+
+  var cx = 0, cy = 0;
+  for (i = 0; i < nodes.length; i++){ cx += nodes[i].x; cy += nodes[i].y; }
+  cx /= nodes.length; cy /= nodes.length;
+  var corrX = -cx * CENTER_K, corrY = -cy * CENTER_K;
+
+  var energy = 0;
+  for (i = 0; i < nodes.length; i++){
+    var n = nodes[i];
+    if (n.dragging){ n.vx = 0; n.vy = 0; continue; }
+    n.vx = (n.vx + corrX) * DAMPING;
+    n.vy = (n.vy + corrY) * DAMPING;
+    var speed = Math.sqrt(n.vx * n.vx + n.vy * n.vy);
+    if (speed > MAX_SPEED){ var sc = MAX_SPEED / speed; n.vx *= sc; n.vy *= sc; }
+    n.x += n.vx; n.y += n.vy;
+    energy += n.vx * n.vx + n.vy * n.vy;
+  }
+  return energy;
+}
+
+function kick(extraFrames){
+  forceFrames = Math.max(forceFrames, extraFrames || 40);
+  if (!rafHandle) rafHandle = requestAnimationFrame(tick);
+}
+
+function tick(){
+  var energy = simStep();
+  render(false);
+  if (forceFrames > 0) forceFrames--;
+  if (energy > ENERGY_THRESHOLD || forceFrames > 0){
+    rafHandle = requestAnimationFrame(tick);
+  } else {
+    rafHandle = null;
+    markReady();
+  }
+}
+
+function reducedMotionSettle(){
+  for (var i = 0; i < 300; i++) simStep();
+  render(true);
+  markReady();
+}
+
+/* ============================================================
+   CANVAS RENDER
+   ============================================================ */
+
+function resizeCanvas(){
+  var rect = stageEl.getBoundingClientRect();
+  var dpr = window.devicePixelRatio || 1;
+  W = rect.width; H = rect.height;
+  canvas.width = Math.max(1, Math.round(W * dpr));
+  canvas.height = Math.max(1, Math.round(H * dpr));
+  canvas.style.width = W + 'px';
+  canvas.style.height = H + 'px';
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  if (viewOffsetX === 0 && viewOffsetY === 0){ viewOffsetX = W / 2; viewOffsetY = H / 2; }
+}
+
+function computeFitView(instant){
+  var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  graphNodes.forEach(function(n){
+    minX = Math.min(minX, n.x); maxX = Math.max(maxX, n.x);
+    minY = Math.min(minY, n.y); maxY = Math.max(maxY, n.y);
+  });
+  var bboxW = Math.max(maxX - minX, 40);
+  var bboxH = Math.max(maxY - minY, 40);
+  var pad = 70;
+  // The inspector overlays the stage: fit the graph into the uncovered region.
+  var regionW = W, regionH = H;
+  if (inspectorEl.classList.contains('open')){
+    if (window.innerWidth > 820){
+      regionW = Math.max(W - 340, 80);
+    } else {
+      var sheetH = Math.min(inspectorEl.getBoundingClientRect().height, 0.6 * H);
+      regionH = Math.max(H - sheetH, 80);
+    }
+  }
+  var availW = Math.max(regionW - 2 * pad, 40);
+  var availH = Math.max(regionH - 2 * pad, 40);
+  var targetScale = Math.min(availW / bboxW, availH / bboxH);
+  targetScale = Math.min(Math.max(targetScale, 0.35), 1.8);
+  var cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
+  var targetOffsetX = regionW / 2 - cx * targetScale;
+  var targetOffsetY = regionH / 2 - cy * targetScale;
+
+  if (instant){
+    viewScale = targetScale; viewOffsetX = targetOffsetX; viewOffsetY = targetOffsetY;
+  } else {
+    viewScale += (targetScale - viewScale) * 0.08;
+    viewOffsetX += (targetOffsetX - viewOffsetX) * 0.08;
+    viewOffsetY += (targetOffsetY - viewOffsetY) * 0.08;
+  }
+  graphNodes.forEach(function(n){
+    n.sx = n.x * viewScale + viewOffsetX;
+    n.sy = n.y * viewScale + viewOffsetY;
+  });
+}
+
+function drawLabel(x, y, text, color, font){
+  ctx.font = font || '11px Helvetica, Arial, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'top';
+  // Paper-colored halo so labels stay legible over edges/connectors.
+  ctx.strokeStyle = '#FDFBF7';
+  ctx.lineWidth = 4;
+  ctx.lineJoin = 'round';
+  ctx.strokeText(text, x, y);
+  ctx.fillStyle = color;
+  ctx.fillText(text, x, y);
+}
+
+function drawSurpriseConnectors(){
+  ctx.save();
+  ctx.setLineDash([3, 4]);
+  ctx.strokeStyle = '#C9A36B';
+  ctx.lineWidth = 1;
+  Object.keys(badgeEls).forEach(function(id){
+    var anc = SURPRISES[id].anchor();
+    if (anc && anc.kind === 'midpoint'){
+      var a = graphNodes.get(anc.a), b = graphNodes.get(anc.b);
+      if (a && b){
+        ctx.beginPath(); ctx.moveTo(a.sx, a.sy); ctx.lineTo(b.sx, b.sy); ctx.stroke();
+      }
+    }
+  });
+  ctx.restore();
+  ctx.setLineDash([]);
+}
+
+function render(instant){
+  ctx.clearRect(0, 0, W, H);
+  if (graphNodes.size === 0){ updateBadgeDOM(); return; }
+  computeFitView(instant);
+
+  var sync = computeSync();
+  var inSyncSet = {};
+  sync.inSync.forEach(function(sid){ inSyncSet[sid] = true; });
+
+  edges.forEach(function(e){
+    var a = graphNodes.get(e.a), b = graphNodes.get(e.b);
+    if (!a || !b) return;
+    var highlighted = !!inSyncSet[e.b];
+    ctx.strokeStyle = highlighted ? 'rgba(61,58,52,0.36)' : 'rgba(61,58,52,0.18)';
+    ctx.lineWidth = highlighted ? 1.6 : 1;
+    ctx.beginPath(); ctx.moveTo(a.sx, a.sy); ctx.lineTo(b.sx, b.sy); ctx.stroke();
+  });
+
+  drawSurpriseConnectors();
+
+  graphNodes.forEach(function(n){
+    if (n.type !== 'store') return;
+    var store = STORES[n.id];
+    var color = COLORS[store.colorVar];
+    var rr = n.r * viewScale;
+    if (inSyncSet[n.id]){
+      ctx.beginPath(); ctx.arc(n.sx, n.sy, rr + 6, 0, Math.PI * 2);
+      ctx.strokeStyle = '#54805C'; ctx.lineWidth = 2; ctx.stroke();
+    }
+    ctx.beginPath(); ctx.arc(n.sx, n.sy, rr, 0, Math.PI * 2);
+    ctx.fillStyle = hexToRgba(color, 0.16); ctx.fill();
+    ctx.lineWidth = 2.5; ctx.strokeStyle = color; ctx.stroke();
+    if (inspectorTarget && inspectorTarget.type === 'store' && inspectorTarget.id === n.id){
+      ctx.beginPath(); ctx.arc(n.sx, n.sy, rr + 3, 0, Math.PI * 2);
+      ctx.strokeStyle = '#3D3A34'; ctx.lineWidth = 1.5; ctx.stroke();
+    }
+    drawLabel(n.sx, n.sy + rr + 14, store.graphLabel, '#3D3A34', '600 11px Helvetica, Arial, sans-serif');
+  });
+
+  graphNodes.forEach(function(n){
+    if (n.type !== 'context') return;
+    var ctxData = CONTEXTS[n.id];
+    var color = COLORS[GROUPS[ctxData.group].colorVar];
+    var rr = n.r * viewScale;
+    ctx.beginPath(); ctx.arc(n.sx, n.sy, rr, 0, Math.PI * 2);
+    ctx.fillStyle = '#FDFBF7'; ctx.fill();
+    ctx.lineWidth = 2; ctx.strokeStyle = color; ctx.stroke();
+    if (inspectorTarget && inspectorTarget.type === 'context' && inspectorTarget.id === n.id){
+      ctx.beginPath(); ctx.arc(n.sx, n.sy, rr + 3, 0, Math.PI * 2);
+      ctx.strokeStyle = '#3D3A34'; ctx.lineWidth = 1.5; ctx.stroke();
+    }
+    drawLabel(n.sx, n.sy + rr + 13, ctxData.chip, '#3D3A34');
+  });
+
+  updateBadgeDOM();
+}
+
+/* ============================================================
+   BADGES
+   ============================================================ */
+
+function updateSurpriseVisibility(){
+  var visibleIds = SURPRISE_ORDER.filter(function(id){ return SURPRISES[id].isVisible(); });
+  Object.keys(badgeEls).forEach(function(id){
+    if (visibleIds.indexOf(id) === -1){ badgeEls[id].remove(); delete badgeEls[id]; }
+  });
+  visibleIds.forEach(function(id){
+    if (badgeEls[id]) return;
+    var el = document.createElement('div');
+    el.className = 'badge';
+    el.dataset.surpriseId = id;
+    el.innerHTML = '<span class="badge-warn" aria-hidden="true">⚠</span>' + SURPRISES[id].teaser;
+    el.addEventListener('click', (function(sid){
+      return function(){ openInspector('surprise', sid); };
+    })(id));
+    badgeLayerEl.appendChild(el);
+    badgeEls[id] = el;
+  });
+}
+
+function resolveAnchorScreen(id){
+  var anc = SURPRISES[id].anchor();
+  if (!anc) return null;
+  if (anc.kind === 'node'){
+    // Badges use translate(-50%,-100%): bottom edge sits 8px above the node circle.
+    var n = graphNodes.get(anc.a);
+    if (!n) return null;
+    return { x:n.sx, y:n.sy - n.r * viewScale - 8 };
+  }
+  var a = graphNodes.get(anc.a), b = graphNodes.get(anc.b);
+  if (!a || !b) return null;
+  return { x:(a.sx + b.sx) / 2, y:(a.sy + b.sy) / 2 };
+}
+
+function badgeHeight(id){
+  var el = badgeEls[id];
+  return (el && el.offsetHeight) || 32;
+}
+
+function nudgeBadges(positions){
+  var ASSUME_W = 170;
+  for (var pass = 0; pass < 4; pass++){
+    for (var i = 0; i < positions.length; i++){
+      for (var j = i + 1; j < positions.length; j++){
+        var p = positions[i], q = positions[j];
+        var qh = badgeHeight(q.id);
+        if (Math.abs(p.x - q.x) < ASSUME_W && Math.abs(p.y - q.y) < Math.max(badgeHeight(p.id), qh)){
+          q.y = p.y + qh;
+        }
+      }
+    }
+  }
+}
+
+function updateBadgeDOM(){
+  var positions = [];
+  Object.keys(badgeEls).forEach(function(id){
+    var anchor = resolveAnchorScreen(id);
+    if (!anchor){ badgeEls[id].style.display = 'none'; return; }
+    badgeEls[id].style.display = '';
+    positions.push({ id:id, x:anchor.x, y:anchor.y });
+  });
+  nudgeBadges(positions);
+  positions.forEach(function(p){
+    var el = badgeEls[p.id];
+    el.style.left = p.x + 'px';
+    el.style.top = p.y + 'px';
+  });
+}
+
+/* ============================================================
+   POINTER / DRAG / SELECT
+   ============================================================ */
+
+function hitTest(mx, my){
+  var best = null, bestDist = Infinity;
+  graphNodes.forEach(function(n){
+    var dx = mx - n.sx, dy = my - n.sy;
+    var d = Math.sqrt(dx * dx + dy * dy);
+    var threshold = n.r * viewScale + 10;
+    if (d <= threshold && d < bestDist){ best = n; bestDist = d; }
+  });
+  return best;
+}
+
+canvas.addEventListener('pointerdown', function(e){
+  var rect = canvas.getBoundingClientRect();
+  var mx = e.clientX - rect.left, my = e.clientY - rect.top;
+  var hit = hitTest(mx, my);
+  if (hit) pointerState = { node:hit, startX:mx, startY:my, dragging:false };
+  else pointerState = null;
+});
+
+window.addEventListener('pointermove', function(e){
+  if (!pointerState) return;
+  var rect = canvas.getBoundingClientRect();
+  var mx = e.clientX - rect.left, my = e.clientY - rect.top;
+  var dx = mx - pointerState.startX, dy = my - pointerState.startY;
+  if (!pointerState.dragging && (Math.abs(dx) > 4 || Math.abs(dy) > 4)){
+    pointerState.dragging = true;
+    pointerState.node.dragging = true;
+    kick(30);
+  }
+  if (pointerState.dragging){
+    pointerState.node.x = (mx - viewOffsetX) / viewScale;
+    pointerState.node.y = (my - viewOffsetY) / viewScale;
+    pointerState.node.vx = 0; pointerState.node.vy = 0;
+  }
+});
+
+window.addEventListener('pointerup', function(){
+  if (pointerState){
+    if (pointerState.dragging){
+      pointerState.node.dragging = false;
+      kick(30);
+    } else {
+      var n = pointerState.node;
+      openInspector(n.type, n.id);
+    }
+    pointerState = null;
+  } else {
+    closeInspector();
+  }
+});
+
+/* ============================================================
+   INSPECTOR
+   ============================================================ */
+
+function surprisesAnchoredOnContext(cid){
+  return SURPRISE_ORDER.filter(function(id){
+    if (!SURPRISES[id].isVisible()) return false;
+    var anc = SURPRISES[id].anchor();
+    return anc && anc.kind === 'node' && anc.a === cid;
+  });
+}
+
+function whoTouchesHtml(sid){
+  var touchers = contextsTouchingStore(sid);
+  if (touchers.length === 0) return '<p class="insp-empty">No selected context touches this store.</p>';
+  return '<ul class="insp-list">' + touchers.map(function(cid){
+    var color = COLORS[GROUPS[CONTEXTS[cid].group].colorVar];
+    return '<li data-open-context="' + cid + '"><span class="dot" style="background:' + color + '"></span>' + CONTEXTS[cid].chip + '</li>';
+  }).join('') + '</ul>';
+}
+
+function storeSyncHtml(sid){
+  var touchers = contextsTouchingStore(sid);
+  var total = selected.size;
+  var html = '';
+  if (total >= 2 && touchers.length === total){
+    html += '<p class="sync-good-text">In sync across your selection ✓</p>';
+  } else {
+    var names = touchers.map(function(cid){ return CONTEXTS[cid].chip; }).join(', ');
+    html += '<p class="sync-bad-text">Kept separate — only: ' + (names || '—') + '</p>';
+  }
+  if (total === 1) html += '<p class="insp-caveat">Only one context selected — nothing to sync across yet.</p>';
+  if (sid === 'repo' && total >= 2) html += '<p class="insp-caveat">CLAUDE.md counts as in-sync only when the contexts open the same repo/project folder.</p>';
+  return html;
+}
+
+function renderStoreInspector(sid){
+  var store = STORES[sid];
+  var homeColor = COLORS[store.colorVar];
+  var scopeText = SCOPE_ACROSS[sid] ? 'Remembered across projects/repos' : 'Within one project/repo';
+  var html = '';
+  html += '<div class="insp-kicker"><span class="dot" style="background:' + homeColor + '"></span>' + store.home.toUpperCase() + '</div>';
+  html += '<h2 class="insp-heading">' + store.officialName + '</h2>';
+  html += '<p class="insp-scope">' + scopeText + '</p>';
+  html += '<div class="insp-section"><div class="insp-label">What gets in</div><p>' + store.in + '</p></div>';
+  html += '<div class="insp-section"><div class="insp-label">How it comes back out</div><p>' + store.out + '</p></div>';
+  html += '<div class="insp-section"><div class="insp-label">Who touches it here</div>' + whoTouchesHtml(sid) + '</div>';
+  html += '<div class="insp-section"><div class="insp-label">Sync</div>' + storeSyncHtml(sid) + '</div>';
+  if (store.act){
+    html += '<div class="insp-section"><div class="insp-label">Act on it</div><p>' + store.act + '</p></div>';
+  }
+  inspectorContentEl.innerHTML = html;
+}
+
+function renderContextInspector(cid){
+  var ctxData = CONTEXTS[cid];
+  var group = GROUPS[ctxData.group];
+  var color = COLORS[group.colorVar];
+  var html = '';
+  html += '<div class="insp-kicker"><span class="dot" style="background:' + color + '"></span>' + group.label + '</div>';
+  html += '<h2 class="insp-heading">' + ctxData.full + '</h2>';
+  html += '<div class="insp-section"><div class="insp-label">Writes to / reads from</div><ul class="insp-list">'
+    + ctxData.stores.map(function(sid){
+        var sc = COLORS[STORES[sid].colorVar];
+        return '<li data-open-store="' + sid + '"><span class="dot" style="background:' + sc + '"></span>' + STORES[sid].graphLabel + '</li>';
+      }).join('') + '</ul></div>';
+  surprisesAnchoredOnContext(cid).forEach(function(sid){
+    html += '<div class="insp-callout" data-open-surprise="' + sid + '">⚠ ' + SURPRISES[sid].full + '</div>';
+  });
+  inspectorContentEl.innerHTML = html;
+}
+
+function renderSurpriseInspector(sid){
+  var s = SURPRISES[sid];
+  var html = '';
+  html += '<div class="insp-kicker insp-kicker-warn">⚠ Surprising</div>';
+  html += '<h2 class="insp-heading insp-heading-surprise">' + s.full + '</h2>';
+  var rel = s.related();
+  html += '<div class="insp-section"><div class="insp-label">See for yourself</div><ul class="insp-list">'
+    + rel.map(function(r){
+        if (r.type === 'store'){
+          var sc = COLORS[STORES[r.id].colorVar];
+          return '<li data-open-store="' + r.id + '"><span class="dot" style="background:' + sc + '"></span>' + STORES[r.id].graphLabel + '</li>';
+        }
+        var cc = COLORS[GROUPS[CONTEXTS[r.id].group].colorVar];
+        return '<li data-open-context="' + r.id + '"><span class="dot" style="background:' + cc + '"></span>' + CONTEXTS[r.id].chip + '</li>';
+      }).join('') + '</ul></div>';
+  inspectorContentEl.innerHTML = html;
+}
+
+function renderInspectorContent(){
+  if (!inspectorTarget) return;
+  if (inspectorTarget.type === 'store') renderStoreInspector(inspectorTarget.id);
+  else if (inspectorTarget.type === 'context') renderContextInspector(inspectorTarget.id);
+  else renderSurpriseInspector(inspectorTarget.id);
+}
+
+function openInspector(type, id){
+  inspectorTarget = { type:type, id:id };
+  renderInspectorContent();
+  inspectorEl.classList.add('open');
+  render(true);
+}
+
+function closeInspector(){
+  inspectorTarget = null;
+  inspectorEl.classList.remove('open');
+  render(true);
+}
+
+inspectorCloseEl.addEventListener('click', closeInspector);
+
+inspectorContentEl.addEventListener('click', function(e){
+  var elC = e.target.closest ? e.target.closest('[data-open-context]') : null;
+  if (elC){ openInspector('context', elC.dataset.openContext); return; }
+  var elS = e.target.closest ? e.target.closest('[data-open-store]') : null;
+  if (elS){ openInspector('store', elS.dataset.openStore); return; }
+  var elW = e.target.closest ? e.target.closest('[data-open-surprise]') : null;
+  if (elW){ openInspector('surprise', elW.dataset.openSurprise); return; }
+});
+
+/* ============================================================
+   RESIZE + INIT
+   ============================================================ */
+
+// Synchronous: a viewport change must never leave a stale canvas behind
+// (the screenshot harness resizes and captures immediately).
+window.addEventListener('resize', function(){
+  resizeCanvas();
+  renderSyncStrip();
+  render(true); // instant fit + full redraw
+  if (graphNodes.size > 0) kick(30); // then let the sim settle
+});
+
+function init(){
+  var isDemo = location.search.indexOf('demo') !== -1;
+  if (isDemo) DEMO_IDS.forEach(function(id){ selected.add(id); });
+
+  buildChipTray();
+  updateChipVisuals();
+  resizeCanvas();
+  rebuildGraph();
+
+  if (isDemo) openInspector('surprise', 's_sides');
+}
+
+init();
+</script>
+</body>
+</html>
