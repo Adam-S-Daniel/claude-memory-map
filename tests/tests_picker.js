@@ -459,6 +459,20 @@ function check(cond, name){
   check(cwLegend.includes('chat-only'), 'CW5 legend mentions memory being chat-only');
   await p.close();
 
+  console.log('WM: Cowork web + mobile remote-session notes');
+  p = await freshPage(DESKTOP);
+  const wmSub = await p.$eval('.card[data-tint="cw"] .cardsub', el => el.textContent);
+  check(wmSub.includes('claude.ai') && wmSub.includes('mobile app'),
+        'WM1 Cowork card names the web and mobile surfaces');
+  const wmFoot = await p.$$eval('.fine', els => els.map(e => e.textContent).join(' '));
+  check(wmFoot.includes('laptop closed') && wmFoot.includes('no device online'),
+        'WM2 footnote: work continues laptop-closed, scheduled tasks need no device online');
+  check(wmFoot.includes('projects and artifacts'),
+        'WM3 shared home spans projects and artifacts');
+  check(wmFoot.includes('local files and browser') && wmFoot.includes('Max plan'),
+        'WM4 desktop full-experience and Max-first rollout stay footnote-level');
+  await p.close();
+
   console.log('SETX: chat memory Settings node correction');
   p = await freshPage(DESKTOP);
   await p.click('#ch_standalone'); await sleep(900);

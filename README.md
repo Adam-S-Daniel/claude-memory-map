@@ -30,7 +30,7 @@ src/
   build_picker2.py    canonical Mermaid block generator (extracted at build time)
   generate_suite.py   builds the 8 static curated diagrams in suite/
 tests/
-  tests_picker.js     81-test puppeteer e2e suite
+  tests_picker.js     85-test puppeteer e2e suite
 scripts/
   dev-server.js       zero-dep dev server: serve + live-reload + auto-rebuild
 suite/                .mermaid sources for those diagrams — a fuller reference set
@@ -44,7 +44,7 @@ suite/                .mermaid sources for those diagrams — a fuller reference
 ```bash
 python3 src/build_picker3.py     # writes index.html
 npm install                      # puppeteer-core + chromium for tests
-node tests/tests_picker.js       # 81 tests: behavior, mobile, semantics, regressions
+node tests/tests_picker.js       # 85 tests: behavior, mobile, semantics, regressions
 ```
 
 Rendering uses Mermaid 11.12.0 from cdnjs at runtime; if the CDN is unreachable the page degrades gracefully and shows the generated Mermaid source instead.
