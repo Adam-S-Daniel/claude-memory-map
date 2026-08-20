@@ -66,13 +66,13 @@ jobs:
 
       - name: Checkout PR head
         if: steps.relevance.outputs.relevant == 'true' && steps.token.outputs.have == 'true'
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
         with:
           ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Checkout site repo
         if: steps.relevance.outputs.relevant == 'true' && steps.token.outputs.have == 'true'
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
         with:
           repository: Adam-S-Daniel/adamdaniel.ai
           ref: main
