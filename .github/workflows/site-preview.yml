@@ -16,6 +16,15 @@ on:
   pull_request:
     types: [opened, synchronize, reopened, closed]
 
+# `mirror` and `teardown` publish to adamdaniel.ai, not a verdict on this PR
+# — they are deliberately NOT required status checks. This `cancel-in-progress`
+# group is what supersedes a stale mirror once a new push lands; a job with a
+# concurrency group must never publish a REQUIRED context, because a
+# cancelled run on a shared head sha blocks the merge API outright with
+# `405 Required status check ... is cancelled` (cms-platform#437). The
+# Dependabot sweep (dependabot-auto-merge.yml) still waits for `mirror` to
+# conclude before it merges, so a cancelled `mirror` run stalls a Dependabot
+# PR with a named skip — it never merges over it — until someone re-runs it.
 concurrency:
   group: site-preview-${{ github.event.pull_request.number }}
   cancel-in-progress: true
