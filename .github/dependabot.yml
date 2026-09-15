@@ -27,28 +27,60 @@ updates:
     # cms-platform/AGENTS.md, "SHA-pin every workflow `uses:`"), matching
     # cms-platform's own .github/dependabot.yml.
     #
-    # Majors wait longer (30 days) because a major is the class that has
-    # actually needed reverting elsewhere in this account (cms-platform's
-    # AGENTS.md records setup-node 6->7 needing a revert, and the Decap
-    # bundle bump kept deliberately revertible). 30 days gives upstream room
-    # to yank or patch a bad major while patches/minors keep flowing weekly.
+    # NO semver-major-days (and no semver-minor-days / semver-patch-days
+    # either): GitHub's Dependabot options reference supports only
+    # `default-days` for the github-actions ecosystem, not per-SemVer-tier
+    # cooldown. Every actions bump, majors included, waits the flat 7 days
+    # above. Adding any `semver-*-days` key here is a schema validation
+    # error, not a key Dependabot quietly ignores, and it disables the WHOLE
+    # FILE, not just this entry. This file shipped with `semver-major-days:
+    # 30` on 2026-08-10. GitHub's `dependabot` check on that commit failed
+    # with "The property '#/updates/0/cooldown/semver-major-days' is not
+    # supported for the package ecosystem 'github-actions'"
+    # (https://github.com/Adam-S-Daniel/claude-memory-map/runs/93574227209),
+    # and no update job ran for either entry, npm included, until the key was
+    # removed (https://github.com/Adam-S-Daniel/claude-memory-map/issues/31).
+    # That check only runs once the file is on main, so a PR never shows it:
+    # tests/tests_dependabot_config.js is the pre-merge guard.
+    # dependabot/dependabot-core#14628 is the open upstream request to add
+    # the support.
+    cooldown:
+      default-days: 7
+    # cms-platform's version is NOT Dependabot's to move. The
+    # scheduled-run-health.yml thin caller carries that version TWICE: the
+    # reusable's `uses:@<tag>` and the `platform_ref:` input that pins the
+    # audit script the reusable sparse-checks-out. This ecosystem sees only
+    # the `uses:` half, so an unignored bump moves the workflow and strands
+    # the script pin. GHA-bench, which has no such ignore, is half-bumped
+    # that way today (https://github.com/Adam-S-Daniel/cms-platform/issues/424).
+    # Here it would also land unattended: dependabot-auto-merge.yml's sweep
+    # merges any green Dependabot PR, and main's ruleset requires no
+    # approval. The ignore is deliberately UNSCOPED (no `versions` or
+    # `update-types`), the same rule _agent-guidance, skills-evals,
+    # fastmail-actions and both CMS sites carry. Bump both halves by hand
+    # until cms-platform#424 settles a mechanism that keeps them in step; if
+    # it does, remove this ignore and the matching assertion in
+    # tests/tests_dependabot_config.js together.
+    ignore:
+      - dependency-name: "Adam-S-Daniel/cms-platform/*"
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+    # Same 7-day minimum package age as the github-actions block above. npm,
+    # unlike github-actions, DOES support per-SemVer-tier cooldown, so majors
+    # here wait longer (30 days). A major is the class that has actually
+    # needed reverting elsewhere in this account (cms-platform's AGENTS.md
+    # records setup-node 6->7 needing a revert), and a bad major (e.g.
+    # puppeteer-core, @sparticuz/chromium) reaches the browser-driven test
+    # suite (tests/tests_picker.js) the same way a bad action SHA would reach
+    # CI, so it gets 30 days to be yanked or patched before this account
+    # adopts it.
     #
     # semver-minor-days / semver-patch-days are deliberately left undefined:
     # GitHub's documented precedence falls an undefined `semver-*-days` back
     # to `default-days`, so spelling them out would only invite the two
     # numbers to drift apart from `default-days` over time.
-    cooldown:
-      default-days: 7
-      semver-major-days: 30
-  - package-ecosystem: npm
-    directory: "/"
-    schedule:
-      interval: weekly
-    # Same graduated wait, same reasoning as the github-actions block above —
-    # a bad major (e.g. puppeteer-core, @sparticuz/chromium) reaches the
-    # browser-driven test suite (tests/tests_picker.js) the same way a bad
-    # action SHA would reach CI, so it gets the same 30-day room to be
-    # yanked or patched before this account adopts it.
     cooldown:
       default-days: 7
       semver-major-days: 30

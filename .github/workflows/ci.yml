@@ -21,6 +21,13 @@ jobs:
       - name: Install dependencies
         run: npm install
 
+      # GitHub validates .github/dependabot.yml only once it is on main (the
+      # `dependabot` check never runs on a PR), so an invalid key merged green
+      # and silently disabled every Dependabot update for five weeks (#31).
+      # This is the pre-merge guard.
+      - name: Check .github/dependabot.yml
+        run: npm run test:config
+
       - name: Install Chrome for Testing
         run: npm run setup:browser
 
