@@ -57,6 +57,7 @@ CI runs serverless Chromium (`@sparticuz/chromium` at `/tmp/chromium`). Locally 
 npm install
 npm run setup:browser    # Chrome-for-Testing into ~/.cache/puppeteer (Linux/WSL)
 npm test
+npm run test:config      # validates .github/dependabot.yml — no browser needed
 ```
 
 **Run the suite:** `npm test` picks a browser in this order — `CHROMIUM_PATH` → newest Chrome under `~/.cache/puppeteer` → a Playwright Chromium under `$PLAYWRIGHT_BROWSERS_PATH` (pre-installed on Claude Code web at `/opt/pw-browsers`, so `npm install && npm test` just works there) → `/tmp/chromium` (CI). To watch it drive the UI:
