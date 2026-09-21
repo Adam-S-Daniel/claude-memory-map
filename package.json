@@ -13,7 +13,7 @@
     "dev": "npm run build && node scripts/dev-server.js"
   },
   "devDependencies": {
-    "@sparticuz/chromium": "^152.0.0",
+    "@sparticuz/chromium": "^153.0.0",
     "puppeteer-core": "^25.10.0",
     "mermaid": "^12.0.0",
     "yaml": "2.9.0"
