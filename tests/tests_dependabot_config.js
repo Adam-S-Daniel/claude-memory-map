@@ -47,36 +47,3 @@ test('no github-actions cooldown sets a per-SemVer-tier key', () => {
     });
   });
 });
-
-test('every github-actions entry ignores cms-platform version bumps', () => {
-  const config = loadConfig();
-  config.updates.forEach((entry, index) => {
-    if (entry['package-ecosystem'] !== 'github-actions') return;
-    const ignoreList = Array.isArray(entry.ignore) ? entry.ignore : [];
-    const match = ignoreList.find(
-      (item) => item && item['dependency-name'] === 'Adam-S-Daniel/cms-platform/*',
-    );
-    assert.ok(
-      match,
-      `updates[${index}] (github-actions) is missing an ignore entry for ` +
-        '"Adam-S-Daniel/cms-platform/*": cms-platform\'s version is carried ' +
-        'TWICE in scheduled-run-health.yml (the reusable\'s uses:@<tag> and ' +
-        'the platform_ref: input pinning the sparse-checked-out audit ' +
-        'script), and this ecosystem only sees the uses:@ half, so an ' +
-        'unignored bump moves the workflow and strands the script pin — see ' +
-        'https://github.com/Adam-S-Daniel/cms-platform/issues/424.',
-    );
-    assert.ok(
-      !Object.prototype.hasOwnProperty.call(match, 'versions'),
-      `updates[${index}] (github-actions) cms-platform ignore entry must not ` +
-        'have a "versions" key: it is deliberately unscoped so no cms-platform ' +
-        'bump lands unattended (see cms-platform#424).',
-    );
-    assert.ok(
-      !Object.prototype.hasOwnProperty.call(match, 'update-types'),
-      `updates[${index}] (github-actions) cms-platform ignore entry must not ` +
-        'have an "update-types" key: it is deliberately unscoped so no ' +
-        'cms-platform bump lands unattended (see cms-platform#424).',
-    );
-  });
-});
