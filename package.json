@@ -6,6 +6,7 @@
     "build": "python3 src/build_picker3.py",
     "test": "node tests/tests_picker.js",
     "test:config": "node --test tests/tests_dependabot_config.js",
+    "test:workflows": "node --test tests/tests_dependabot_auto_merge.js",
     "test:headed": "HEADED=1 node tests/tests_picker.js",
     "test:debug": "HEADED=1 DEVTOOLS=1 SLOWMO=150 node tests/tests_picker.js",
     "setup:browser": "npx --yes @puppeteer/browsers install chrome@stable --path \"$HOME/.cache/puppeteer\"",
