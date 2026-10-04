@@ -548,7 +548,10 @@ function check(cond, name){
         'V47a legend describes the default AGENTS.md fallback and configurable choice');
   check([readme, spec].every(doc => doc.includes('CLAUDE.local.md')
         && doc.includes('working directory or above') && doc.includes('/config')
-        && doc.includes('https://code.claude.com/docs/en/memory#agentsmd'))
+        && doc.includes('https://code.claude.com/docs/en/memory#agents-md')
+        && doc.includes('https://code.claude.com/docs/en/memory#when-agents-md-support-is-unavailable'))
+        && await p.$eval('#syncdesk .legend', el => [...el.querySelectorAll('a')]
+          .some(a => a.href === 'https://code.claude.com/docs/en/memory#agents-md'))
         && spec.includes('owner naming') && cloudSource.includes('Project notes file — CLAUDE.md'),
         'V47b docs explain fallback while preserving the canonical repo node for owner review');
 
@@ -561,7 +564,8 @@ function check(cond, name){
         'V48a portable guide qualifies path examples and documents config and project-key boundaries');
   check(portable.includes('permissions.blockReadsOutsideWorkingDirectories')
         && portable.includes('project or local settings') && portable.includes('not loaded into the prompt, recalled, indexed')
-        && portable.includes('memory extraction, or written to') && portable.includes('inside the repo')
+        && portable.includes('memory extraction, or written to')
+        && portable.includes('even when the chosen directory is inside the repo')
         && portable.includes('workspace trust does not override'),
         'V48b repository-chosen auto memory is blocked for reads and writes even inside trusted repos');
   check(portable.includes('commit the memory files and `.claude/settings.json`')

@@ -90,8 +90,8 @@ The repo node keeps its canonical `CLAUDE.md` name pending an owner naming
 decision. Since [v2.1.277](https://github.com/anthropics/claude-code/releases/tag/v2.1.277),
 Claude Code defaults to `AGENTS.md` when no project `CLAUDE.md` or
 `CLAUDE.local.md` exists in the working directory or above; Project instructions
-in `/config` can change the choice. See the [instruction-file docs](https://code.claude.com/docs/en/memory#agentsmd)
-and their [provider-support section](https://code.claude.com/docs/en/memory#when-agentsmd-support-is-unavailable).
+in `/config` can change the choice. See the [instruction-file docs](https://code.claude.com/docs/en/memory#agents-md)
+and their [provider-support section](https://code.claude.com/docs/en/memory#when-agents-md-support-is-unavailable).
 
 ### Sync semantics (the headline question)
 

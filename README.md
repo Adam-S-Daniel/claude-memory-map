@@ -23,7 +23,7 @@
 
 Claude Code on the web (cloud sessions) starts in a fresh task sandbox and does not inherit your laptop's User `CLAUDE.md` or machine-local auto memory. A configured SessionStart hook, such as [`fleet-memory.sh`](https://github.com/Adam-S-Daniel/_agent-guidance/blob/main/.claude/hooks/fleet-memory.sh), can create `~/.claude/CLAUDE.md` before memory assembly, so the same session reads it. That user file lives only in the sandbox and is not synced to your laptop. The map keeps the default store topology; its footnote explains this configured exception.
 
-The map's repo store remains labeled `CLAUDE.md`. Since [Claude Code v2.1.277](https://github.com/anthropics/claude-code/releases/tag/v2.1.277), the default falls back to `AGENTS.md` when no project `CLAUDE.md` or `CLAUDE.local.md` exists in the working directory or above. Project instructions in `/config` can change that choice. The [instruction-file docs](https://code.claude.com/docs/en/memory#agentsmd) describe the fallback and [provider support](https://code.claude.com/docs/en/memory#when-agentsmd-support-is-unavailable).
+The map's repo store remains labeled `CLAUDE.md`. Since [Claude Code v2.1.277](https://github.com/anthropics/claude-code/releases/tag/v2.1.277), the default falls back to `AGENTS.md` when no project `CLAUDE.md` or `CLAUDE.local.md` exists in the working directory or above. Project instructions in `/config` can change that choice. The [instruction-file docs](https://code.claude.com/docs/en/memory#agents-md) describe the fallback and [provider support](https://code.claude.com/docs/en/memory#when-agents-md-support-is-unavailable).
 
 ## Repository layout
 
