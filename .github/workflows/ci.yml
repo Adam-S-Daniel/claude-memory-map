@@ -36,6 +36,9 @@ jobs:
       - name: Check dependabot-auto-merge.yml
         run: npm run test:workflows
 
+      - name: Check generated Mermaid suite
+        run: npm run test:suite
+
       - name: Install Chrome for Testing
         run: npm run setup:browser
 

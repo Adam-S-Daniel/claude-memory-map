@@ -77,7 +77,7 @@ no persistent laptop home: fresh cloud sandbox per task.)*
 | chatmem | Memory from chat history | account | across | Two parts: chat-history summary ("memory summary", synthesized daily from standalone chats) + saved facts ("memory edits", applied immediately when you say "remember this"). Saved facts feed the summary. Loaded into every new standalone chat. Displayed & managed at Settings → Memory ("Manage memory", home of the "Generate memory from chat history" toggle; your edits/imports become saved facts; export available). |
 | prefs | Instructions for Claude | account | across | Free-text box at Settings → Profile ("Instructions" in the app). Anthropic: "Claude will keep these in mind across chats and Cowork within Anthropic's guidelines." Applied to every chat and to Cowork sessions. |
 | projmem | Project memory ("project-scoped memory") | account | within | One per claude.ai Project. Filled by chatting and by saying "remember this" in that Project; recalled in that Project's chats only. |
-| repo | Project notes file — CLAUDE.md ("project instructions") | repo | within | One per repo/project folder; read at session start by whatever opens it. You write it (code contexts); in Cowork, you or Claude writes it (e.g. /init). Claude Code on the web (cloud sessions) reads it at session start and can update it by saving changes to the project. |
+| repo | Project notes file — CLAUDE.md (or AGENTS.md when no CLAUDE.md, Claude Code v2.1.277+) ("project instructions") | repo | within | One per repo/project folder; read at session start by whatever opens it. You write it (code contexts); in Cowork, you or Claude writes it (e.g. /init). Claude Code on the web (cloud sessions) reads it at session start and can update it by saving changes to the project. |
 | macumd | User CLAUDE.md — Mac ("user instructions") | macfs | across | You write it; applies to all projects on this Mac; read at session start. |
 | winumd | User CLAUDE.md — Windows ("user instructions") | winfs | across | Same, for the Windows side. |
 | wslumd | User CLAUDE.md — WSL ("user instructions") | wslfs | across | Same, for the WSL side. |
@@ -86,18 +86,20 @@ no persistent laptop home: fresh cloud sandbox per task.)*
 | wslauto | Auto memory — WSL | wslfs | within | Same, WSL side. |
 | cwmem | Cowork project memory | cwloc | within | One per Cowork project, kept on that computer. Remembers as you work; recalled when you reopen that project. |
 
-The repo node keeps its canonical `CLAUDE.md` name pending an owner naming
-decision. Since [v2.1.277](https://github.com/anthropics/claude-code/releases/tag/v2.1.277),
-Claude Code defaults to `AGENTS.md` when no project `CLAUDE.md` or
-`CLAUDE.local.md` exists in the working directory or above; Project instructions
-in `/config` can change the choice. See the [instruction-file docs](https://code.claude.com/docs/en/memory#agents-md)
+The repo node shows the `AGENTS.md` fallback. By default, Claude Code v2.1.277+
+reads `AGENTS.md` when no project `CLAUDE.md` or `CLAUDE.local.md` exists
+in the working directory or above. When both files exist, `CLAUDE.md` takes
+precedence; they are not combined automatically. Project instructions in
+`/config` can change this choice. The [Claude Code v2.1.281 changelog entry](https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md#21281)
+documents that the fallback also applies to Amazon Bedrock, Google Vertex AI,
+Microsoft Foundry, LLM gateways, and sessions with telemetry disabled. See the [instruction-file docs](https://code.claude.com/docs/en/memory#agents-md)
 and their [provider-support section](https://code.claude.com/docs/en/memory#when-agents-md-support-is-unavailable).
 
 ### Sync semantics (the headline question)
 
 A store is **in sync across your selection** iff *every* selected session
 context touches it; otherwise it is **kept separate** (show who has it).
-Caveats: CLAUDE.md sync assumes the contexts open the same repo/project
+Caveats: Repo instruction sync assumes the contexts open the same repo/project
 folder; with a single context selected there is nothing to sync across yet.
 
 Scope lens (optional but valued): "remembered across projects/repos" =
@@ -119,8 +121,7 @@ remember nothing project-scoped.
   the baseline topology does not add a persistent cloud user store.
 - Remote Control (/rc) from the Windows desktop app: the session **and its
   memory stay in WSL** (observed).
-- One-off Cowork sessions **keep nothing afterward** (they still read
-  CLAUDE.md and your Instructions).
+- One-off Cowork sessions **keep nothing afterward** (they still read CLAUDE.md and your Instructions).
 - Auto memory is **machine-local by default**; the `autoMemoryDirectory`
   setting can move it into the repo so it travels, subject to permissions and
   startup index limits (see the [portable-memory guide](../docs/portable-memory.md)).

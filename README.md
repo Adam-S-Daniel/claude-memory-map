@@ -23,7 +23,7 @@
 
 Claude Code on the web (cloud sessions) starts in a fresh task sandbox and does not inherit your laptop's User `CLAUDE.md` or machine-local auto memory. A configured SessionStart hook, such as [`fleet-memory.sh`](https://github.com/Adam-S-Daniel/_agent-guidance/blob/main/.claude/hooks/fleet-memory.sh), can create `~/.claude/CLAUDE.md` before memory assembly, so the same session reads it. That user file lives only in the sandbox and is not synced to your laptop. The map keeps the default store topology; its footnote explains this configured exception.
 
-The map's repo store remains labeled `CLAUDE.md`. Since [Claude Code v2.1.277](https://github.com/anthropics/claude-code/releases/tag/v2.1.277), the default falls back to `AGENTS.md` when no project `CLAUDE.md` or `CLAUDE.local.md` exists in the working directory or above. Project instructions in `/config` can change that choice. The [instruction-file docs](https://code.claude.com/docs/en/memory#agents-md) describe the fallback and [provider support](https://code.claude.com/docs/en/memory#when-agents-md-support-is-unavailable).
+The repo store shows `CLAUDE.md (repo; AGENTS.md fallback)`. By default, Claude Code v2.1.277+ reads `AGENTS.md` when no project `CLAUDE.md` or `CLAUDE.local.md` exists in the working directory or above. When both files exist, `CLAUDE.md` takes precedence; they are not combined automatically. Project instructions in `/config` can change this choice. The [Claude Code v2.1.281 changelog entry](https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md#21281) documents that the fallback also applies to Amazon Bedrock, Google Vertex AI, Microsoft Foundry, LLM gateways, and sessions with telemetry disabled. The [instruction-file docs](https://code.claude.com/docs/en/memory#agents-md) describe the fallback and [provider support](https://code.claude.com/docs/en/memory#when-agents-md-support-is-unavailable).
 
 ## Repository layout
 
@@ -34,7 +34,7 @@ src/
   build_picker2.py    canonical Mermaid block generator (extracted at build time)
   generate_suite.py   builds the 8 static curated diagrams in suite/
 tests/
-  tests_picker.js     98-test puppeteer e2e suite
+  tests_picker.js     105-test puppeteer e2e suite
 scripts/
   dev-server.js       zero-dep dev server: serve + live-reload + auto-rebuild
 suite/                .mermaid sources for those diagrams — a fuller reference set
@@ -48,7 +48,7 @@ suite/                .mermaid sources for those diagrams — a fuller reference
 ```bash
 python3 src/build_picker3.py     # writes index.html
 npm install                      # puppeteer-core + chromium for tests
-node tests/tests_picker.js       # 98 tests: behavior, mobile, semantics, regressions
+node tests/tests_picker.js       # 105 tests: behavior, mobile, semantics, regressions
 ```
 
 Rendering uses Mermaid 11.12.0 from cdnjs at runtime; if the CDN is unreachable the page degrades gracefully and shows the generated Mermaid source instead.
@@ -61,6 +61,7 @@ CI runs serverless Chromium (`@sparticuz/chromium` at `/tmp/chromium`). Locally 
 npm install
 npm run setup:browser    # Chrome-for-Testing into ~/.cache/puppeteer (Linux/WSL)
 npm test
+npm run test:suite       # verifies generated Mermaid files without changing suite/
 npm run test:config      # validates .github/dependabot.yml — no browser needed
 ```
 
@@ -104,7 +105,7 @@ Setup (one-time): a fine-grained PAT scoped to `Adam-S-Daniel/adamdaniel.ai` wit
 
 ## Sourcing conventions
 
-Every store, edge, and term traces to documented vanilla behavior in Anthropic's products. Where official docs and the shipping UI disagreed, the shipping UI won. No user-specific configuration is represented.
+Every store, edge, and term traces to documented vanilla behavior in Anthropic's products. Where official docs and the shipping UI disagreed, the shipping UI won. No user-specific configuration is represented. The [v2.1.277 release](https://github.com/anthropics/claude-code/releases/tag/v2.1.277) documents the default fallback tracked in [issue #47](https://github.com/Adam-S-Daniel/claude-memory-map/issues/47). The provider-support documentation above corroborates that version boundary.
 
 ## License
 
