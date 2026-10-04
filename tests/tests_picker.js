@@ -4,6 +4,7 @@ const puppeteer = require('puppeteer-core');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const {spawnSync} = require('child_process');
 const TARGET = 'file://' + path.resolve(__dirname, '../index.html');
 const MERMAID_BUNDLE = path.resolve(__dirname, '../node_modules/mermaid/dist/mermaid.min.js');
 
@@ -280,10 +281,10 @@ function check(cond, name){
   check(txt.includes('WSL file system'), 'L3 full mode spells out the store');
   await p.click('#labelmode'); await sleep(400);
   txt = await p.$eval('#syncdesk .insync', el => el.textContent);
-  check(txt.includes('CLAUDE.md (repo)'), 'L4a repo term in brief label (code-only)');
+  check(txt.includes('CLAUDE.md (repo; AGENTS.md fallback)'), 'L4a repo fallback in brief label (code-only)');
   await p.click('#cw_local_project'); await sleep(900);
-  txt = await p.$eval('#syncdesk', el => el.textContent);
-  check(txt.includes('CLAUDE.md (repo)') && !txt.includes('CLAUDE.md (repo/project folder)')
+  txt = await p.$$eval('#syncdesk .syncitem', els => els.map(el => el.textContent).join('|'));
+  check(txt.includes('CLAUDE.md (repo; AGENTS.md fallback)') && !txt.includes('CLAUDE.md (repo/project folder)')
         && txt.includes('Cowork folder instructions'),
         'L4b adding Cowork keeps the repo-only term and lists Cowork folder instructions');
   await p.click('#win_cli_native'); await sleep(900);   // a Windows-home context so winhome is listed
@@ -324,13 +325,13 @@ function check(cond, name){
   let sin = await p.$eval('#syncdesk .insync', el => el.textContent);
   check(sin.includes('User CLAUDE.md'), 'S2a across: user CLAUDE.md in sync');
   let sitems = await p.$$eval('#syncdesk .syncitem', els => els.map(e => e.textContent).join('|'));
-  check(!sitems.includes('Auto memory') && !sitems.includes('CLAUDE.md (repo'),
+  check(!sitems.includes('Auto memory') && !sitems.includes('CLAUDE.md (repo; AGENTS.md fallback)'),
         'S2b across: per-project stores filtered out of the lists');
   await setScope(p, 'within');
   sin = await p.$eval('#syncdesk .insync', el => el.textContent);
   stxt = await p.$eval('#syncdesk', el => el.textContent);
-  check(sin.includes('Auto memory') && sin.includes('CLAUDE.md (repo)'),
-        'S3a within: auto memory + repo CLAUDE.md in sync');
+  check(sin.includes('Auto memory') && sin.includes('CLAUDE.md (repo; AGENTS.md fallback)'),
+        'S3a within: auto memory + repo fallback in sync');
   sitems = await p.$$eval('#syncdesk .syncitem', els => els.map(e => e.textContent).join('|'));
   check(!sitems.includes('User CLAUDE.md'), 'S3b within: cross-project stores filtered out of the lists');
   await setScope(p, 'both');
@@ -539,21 +540,86 @@ function check(cond, name){
         && doc.includes('same session') && doc.includes('not synced') && doc.includes('fleet-memory.sh'))
         && !spec.includes('reads **only the repo'),
         'V30b README and SPEC qualify cloud defaults with the configured hook exception');
-  const cloudSource = await p.evaluate(() => compose({code_web:true}).code);
 
-  const legend = await p.$eval('#syncdesk .legend', el => el.textContent);
-  check(legend.includes('v2.1.277+') && legend.includes('AGENTS.md')
-        && legend.includes('CLAUDE.local.md') && legend.includes('working directory or above')
-        && legend.includes('Project instructions') && legend.includes('/config'),
-        'V47a legend describes the default AGENTS.md fallback and configurable choice');
-  check([readme, spec].every(doc => doc.includes('CLAUDE.local.md')
-        && doc.includes('working directory or above') && doc.includes('/config')
-        && doc.includes('https://code.claude.com/docs/en/memory#agents-md')
-        && doc.includes('https://code.claude.com/docs/en/memory#when-agents-md-support-is-unavailable'))
-        && await p.$eval('#syncdesk .legend', el => [...el.querySelectorAll('a')]
-          .some(a => a.href === 'https://code.claude.com/docs/en/memory#agents-md'))
-        && spec.includes('owner naming') && cloudSource.includes('Project notes file — CLAUDE.md'),
-        'V47b docs explain fallback while preserving the canonical repo node for owner review');
+  const repoLegend = await p.$eval('#syncdesk .legend', el => {
+    const dt = [...el.querySelectorAll('dt')].find(term => term.textContent === 'CLAUDE.md (repo; AGENTS.md fallback)');
+    return {title: dt?.textContent || '', body: dt?.nextElementSibling?.textContent || '',
+      docs: dt?.nextElementSibling?.querySelector('a')?.href || ''};
+  });
+  check(repoLegend.title === 'CLAUDE.md (repo; AGENTS.md fallback)'
+        && repoLegend.body.includes('v2.1.277+')
+        && repoLegend.body.includes('no project CLAUDE.md or CLAUDE.local.md')
+        && repoLegend.body.includes('working directory or above'),
+        'V47a repo legend identifies precise default fallback');
+  check(repoLegend.body.includes('CLAUDE.md takes precedence')
+        && repoLegend.body.includes('not combined automatically')
+        && repoLegend.body.includes('Project instructions in /config can change this choice')
+        && repoLegend.docs === 'https://code.claude.com/docs/en/memory#agents-md',
+        'V47b repo legend states precedence and configurable choice');
+  check(['Amazon Bedrock', 'Google Vertex AI', 'Microsoft Foundry', 'LLM gateways',
+         'telemetry-disabled sessions'].every(provider => repoLegend.body.includes(provider))
+        && repoLegend.body.includes('v2.1.281+'),
+        'V47c repo legend covers provider expansion');
+  const repoDiagram = await p.evaluate(async () => {
+    const diagram = await mermaid.mermaidAPI.getDiagramFromText(compose({code_web:true}).code);
+    const vertices = diagram.db.getVertices();
+    const repo = vertices instanceof Map ? vertices.get('S4') : vertices.S4;
+    return repo.text;
+  });
+  check(repoDiagram.includes('Project notes file — CLAUDE.md')
+        && repoDiagram.includes('or AGENTS.md when no CLAUDE.md')
+        && repoDiagram.includes('Claude Code v2.1.277+'),
+        'V47d parsed repo diagram node shows fallback and version');
+  const repoSuiteSource = spawnSync('python3', ['-c', `
+import ast, pathlib, sys
+source = pathlib.Path(sys.argv[1]).read_text()
+tree = ast.parse(source)
+functions = [node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == 'repo_block']
+assert len(functions) == 1
+namespace = {'Q': '&quot;'}
+exec(compile(ast.Module(body=functions, type_ignores=[]), sys.argv[1], 'exec'), namespace)
+print(namespace['repo_block']('repo'))
+`, path.resolve(__dirname, '../src/generate_suite.py')], {encoding:'utf8'});
+  const suiteRepoText = repoSuiteSource.status === 0 ? repoSuiteSource.stdout : '';
+  check(suiteRepoText.includes('Project notes file — CLAUDE.md')
+        && suiteRepoText.includes('or AGENTS.md when no CLAUDE.md')
+        && suiteRepoText.includes('Claude Code v2.1.277+'),
+        'V47h static suite generator repo block includes fallback and version');
+
+  const repoLabels = await p.evaluate(() => {
+    document.getElementById('code_web').checked = true;
+    document.getElementById('scope').value = 'both';
+    labelMode = 'brief'; updateSync();
+    const get = id => [...document.querySelectorAll('#' + id + ' .syncitem')]
+      .map(el => el.textContent).find(text => text.includes('CLAUDE.md (repo') || text.startsWith('Project notes file —'));
+    const brief = [get('syncdesk'), get('syncmob')];
+    labelMode = 'full'; updateSync();
+    return {brief, full: [get('syncdesk'), get('syncmob')],
+      notes: [...document.querySelectorAll('#syncdesk .syncnote')].map(el => el.textContent)};
+  });
+  check(repoLabels.brief.every(label => label === 'CLAUDE.md (repo; AGENTS.md fallback)')
+        && repoLabels.full.every(label => label ===
+          'Project notes file — CLAUDE.md (or AGENTS.md when no CLAUDE.md, Claude Code v2.1.277+), saved in the repo')
+        && repoLabels.notes.some(note => note.includes('Repo instruction sync assumes')),
+        'V47e desktop and mobile sync use repo brief/full labels and generic caveat');
+  const readmeRepo = readme.split('The repo store shows')[1]?.split('## Repository layout')[0] || '';
+  const specRepo = spec.split('The repo node shows')[1]?.split('### Sync semantics')[0] || '';
+  check(readmeRepo.includes('CLAUDE.md (repo; AGENTS.md fallback)')
+        && spec.includes('Project notes file — CLAUDE.md (or AGENTS.md when no CLAUDE.md, Claude Code v2.1.277+)')
+        && [readmeRepo, specRepo].every(doc => doc.includes('CLAUDE.local.md')
+          && doc.includes('working directory or above') && doc.includes('/config')
+          && doc.replace(/\s+/g, ' ').includes('CLAUDE.md` takes precedence')
+          && doc.includes('https://code.claude.com/docs/en/memory#agents-md')
+          && doc.includes('https://code.claude.com/docs/en/memory#when-agents-md-support-is-unavailable')),
+        'V47f README and SPEC describe fallback, precedence, and choice');
+  check((readme.match(/https:\/\/github.com\/anthropics\/claude-code\/releases\/tag\/v2\.1\.277/g) || []).length === 1
+        && (readme.match(/https:\/\/github.com\/anthropics\/claude-code\/releases\/tag\/v2\.1\.281/g) || []).length === 1
+        && !spec.includes('github.com/anthropics/claude-code/releases/tag/')
+        && [readmeRepo, specRepo].every(doc => doc.includes('v2.1.281+')
+          && ['Amazon Bedrock', 'Google Vertex AI', 'Microsoft Foundry', 'LLM gateways',
+              'telemetry-disabled sessions'].every(provider => doc.includes(provider)))
+        && !spec.includes('owner naming'),
+        'V47g release links occur once and docs cover provider expansion');
 
   check(portable.includes('typical short-path example') && portable.includes('not a guaranteed encoding algorithm')
         && portable.includes('session directories for paths over 200 characters')
@@ -578,6 +644,8 @@ function check(cond, name){
         && portable.includes('not loaded at the next startup') && portable.includes('topic files')
         && portable.includes('reads on demand') && portable.includes('where the cut starts'),
         'V48d guide documents startup limits, saved over-limit writes, and on-demand topic files');
+  await p.evaluate(() => { labelMode = 'brief'; updateSync(); });
+  const legend = await p.$eval('#syncdesk .legend', el => el.textContent);
   check(legend.includes('permissions.blockReadsOutsideWorkingDirectories') && legend.includes('even inside the repo')
         && legend.includes('200 lines or 25KB') && legend.includes('topic files load on demand')
         && await p.$eval('#syncdesk .legend', el => [...el.querySelectorAll('a')]

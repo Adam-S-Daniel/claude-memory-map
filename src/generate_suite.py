@@ -90,6 +90,8 @@ C5 = '''C5["On the web
 def repo_block(term):
     return f'''subgraph REPO["Saved with the project's files"]
   S4["Project notes file — CLAUDE.md
+  (or AGENTS.md when no CLAUDE.md,
+  Claude Code v2.1.277+)
   ({Q}project instructions{Q})
   (one per {term},
   read by whatever opens it)"]

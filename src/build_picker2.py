@@ -42,7 +42,7 @@ const NODES = {
 };
 
 function s4Node(){
-  return `S4["Project notes file — CLAUDE.md\n  (${Q}project instructions${Q})\n  (one per repo,\n  read by whatever opens it)"]`;
+  return `S4["Project notes file — CLAUDE.md\n  (or AGENTS.md when no CLAUDE.md,\n  Claude Code v2.1.277+)\n  (${Q}project instructions${Q})\n  (one per repo,\n  read by whatever opens it)"]`;
 }
 
 function s7Node(remote){
