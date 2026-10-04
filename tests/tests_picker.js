@@ -519,6 +519,99 @@ function check(cond, name){
         'C5 Clear all resets badges');
   await p.close();
 
+  // Vendor-impact checks use the DOM and Mermaid parser with a local bundle, without rendering or timers.
+  console.log('V30/V47/V48/V49: vendor-impact facts and terminology');
+  p = await freshPage(DESKTOP);
+  const readDoc = file => fs.readFileSync(path.resolve(__dirname, '..', file), 'utf8');
+  const readme = readDoc('README.md');
+  const spec = readDoc('prototypes/SPEC.md');
+  const portable = readDoc('docs/portable-memory.md');
+  const cloudNote = await p.evaluate(() => {
+    const el = document.getElementById('cloud-memory-note');
+    return {text: el?.textContent || '', hook: el?.querySelector('a')?.href};
+  });
+  check(cloudNote.text.includes('does not inherit') && cloudNote.text.includes('SessionStart')
+        && cloudNote.text.includes('before memory assembly') && cloudNote.text.includes('same session')
+        && cloudNote.text.includes('only in the sandbox') && cloudNote.text.includes('not synced')
+        && cloudNote.hook === 'https://github.com/Adam-S-Daniel/_agent-guidance/blob/main/.claude/hooks/fleet-memory.sh',
+        'V30a cloud footnote distinguishes laptop memory from same-session hook instructions');
+  check([readme, spec].every(doc => doc.includes('before memory assembly')
+        && doc.includes('same session') && doc.includes('not synced') && doc.includes('fleet-memory.sh'))
+        && !spec.includes('reads **only the repo'),
+        'V30b README and SPEC qualify cloud defaults with the configured hook exception');
+  const cloudSource = await p.evaluate(() => compose({code_web:true}).code);
+
+  const legend = await p.$eval('#syncdesk .legend', el => el.textContent);
+  check(legend.includes('v2.1.277+') && legend.includes('AGENTS.md')
+        && legend.includes('CLAUDE.local.md') && legend.includes('working directory or above')
+        && legend.includes('Project instructions') && legend.includes('/config'),
+        'V47a legend describes the default AGENTS.md fallback and configurable choice');
+  check([readme, spec].every(doc => doc.includes('CLAUDE.local.md')
+        && doc.includes('working directory or above') && doc.includes('/config')
+        && doc.includes('https://code.claude.com/docs/en/memory#agents-md')
+        && doc.includes('https://code.claude.com/docs/en/memory#when-agents-md-support-is-unavailable'))
+        && await p.$eval('#syncdesk .legend', el => [...el.querySelectorAll('a')]
+          .some(a => a.href === 'https://code.claude.com/docs/en/memory#agents-md'))
+        && spec.includes('owner naming') && cloudSource.includes('Project notes file — CLAUDE.md'),
+        'V47b docs explain fallback while preserving the canonical repo node for owner review');
+
+  check(portable.includes('typical short-path example') && portable.includes('not a guaranteed encoding algorithm')
+        && portable.includes('session directories for paths over 200 characters')
+        && portable.includes('does not establish a new auto-memory hash algorithm')
+        && portable.includes('CLAUDE_CODE_PROJECT_DIR_NAME') && portable.includes('CLAUDE_CONFIG_DIR')
+        && portable.includes('v2.1.234') && portable.includes('same config directory and project key')
+        && portable.includes('Run `/memory` to find the active memory location'),
+        'V48a portable guide qualifies path examples and documents config and project-key boundaries');
+  check(portable.includes('permissions.blockReadsOutsideWorkingDirectories')
+        && portable.includes('project or local settings') && portable.includes('not loaded into the prompt, recalled, indexed')
+        && portable.includes('memory extraction, or written to')
+        && portable.includes('even when the chosen directory is inside the repo')
+        && portable.includes('workspace trust does not override'),
+        'V48b repository-chosen auto memory is blocked for reads and writes even inside trusted repos');
+  check(portable.includes('commit the memory files and `.claude/settings.json`')
+        && portable.includes('setting alone does not track or commit them')
+        && portable.includes('can read committed memory when the active settings and permissions allow it'),
+        'V48c portable memory requires committed files and permission-aware hosted loading');
+  check(portable.includes('200 lines or 25KB') && portable.includes('whichever comes first')
+        && portable.includes('excludes frontmatter and HTML comments')
+        && portable.includes('write succeeds in saving the file but returns an explicit error')
+        && portable.includes('not loaded at the next startup') && portable.includes('topic files')
+        && portable.includes('reads on demand') && portable.includes('where the cut starts'),
+        'V48d guide documents startup limits, saved over-limit writes, and on-demand topic files');
+  check(legend.includes('permissions.blockReadsOutsideWorkingDirectories') && legend.includes('even inside the repo')
+        && legend.includes('200 lines or 25KB') && legend.includes('topic files load on demand')
+        && await p.$eval('#syncdesk .legend', el => [...el.querySelectorAll('a')]
+          .some(a => a.href.endsWith('/docs/portable-memory.md'))),
+        'V48e auto-memory legend surfaces permission and index caveats with the detailed guide');
+
+  const cloudName = 'Claude Code on the web (cloud sessions)';
+  check(await p.evaluate(name => ['code_web','mac_app_web','win_app_web'].every(id =>
+    document.getElementById(id).closest('label').textContent.includes(name)), cloudName),
+    'V49a all cloud checkbox rows show both session names');
+  const cloudDiagram = await p.evaluate(async () => {
+    const diagram = await mermaid.mermaidAPI.getDiagramFromText(
+      compose({mac_app_web:true,win_app_web:true}).code);
+    const vertices = diagram.db.getVertices();
+    const cloud = vertices instanceof Map ? vertices.get('C5') : vertices.C5;
+    return {cloud: cloud.text, edges: diagram.db.getEdges().map(({start,end,text}) => ({start,end,text}))};
+  });
+  check(cloudDiagram.cloud.includes(cloudName) && ['MAPP','WAPP'].every(start =>
+        cloudDiagram.edges.some(edge => edge.start === start && edge.end === 'C5'
+          && edge.text.includes(cloudName))),
+        'V49b runtime diagram node and both desktop launch edges show both names');
+  const cloudSync = await p.evaluate(() => {
+    document.getElementById('scope').value = 'both';
+    document.getElementById('code_web').checked = true;
+    document.getElementById('ch_standalone').checked = true;
+    updateSync();
+    return document.getElementById('syncdesk').querySelector('.notsync').textContent;
+  });
+  check(cloudSync.includes(cloudName), 'V49c sync summary uses both cloud session names');
+  check([readme, spec].every(doc => doc.includes(cloudName))
+        && !readme.includes('on the web actually read?') && !spec.includes('on the web sessions'),
+        'V49d README and SPEC keep the recognizable web name alongside cloud sessions');
+  await p.close();
+
   await browser.close();
   console.log(`\n${passes} passed, ${failures.length} failed`);
   if (failures.length){ console.log('FAILED:', failures.join(' | ')); process.exit(1); }

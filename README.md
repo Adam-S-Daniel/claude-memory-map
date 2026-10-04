@@ -8,7 +8,7 @@
 
 - Which memories follow you across projects and repos, and which stay siloed in one?
 - Work in WSL *and* native Windows — which stores are you keeping twice?
-- What does Claude Code on the web actually read? (The repo's `CLAUDE.md`. Nothing cross-repo.)
+- What does Claude Code on the web (cloud sessions) actually read? (Project instructions by default; a configured startup hook can also supply sandbox-local user instructions.)
 - What do standalone chats remember that project chats don't — and vice versa?
 - Why doesn't Cowork know what chat knows? (Anthropic: "Memory is chat-only. What Claude remembers about you in chat doesn't carry into Cowork sessions yet.")
 
@@ -21,6 +21,10 @@
 - **Official terminology throughout** — every store carries Anthropic's shipping name ("Memory from chat history", "Instructions for Claude", "auto memory", "folder instructions", "global instructions"…)
 - **Mobile-friendly** — stacked layout, 44px touch targets, sticky sync summary, fit-width default
 
+Claude Code on the web (cloud sessions) starts in a fresh task sandbox and does not inherit your laptop's User `CLAUDE.md` or machine-local auto memory. A configured SessionStart hook, such as [`fleet-memory.sh`](https://github.com/Adam-S-Daniel/_agent-guidance/blob/main/.claude/hooks/fleet-memory.sh), can create `~/.claude/CLAUDE.md` before memory assembly, so the same session reads it. That user file lives only in the sandbox and is not synced to your laptop. The map keeps the default store topology; its footnote explains this configured exception.
+
+The map's repo store remains labeled `CLAUDE.md`. Since [Claude Code v2.1.277](https://github.com/anthropics/claude-code/releases/tag/v2.1.277), the default falls back to `AGENTS.md` when no project `CLAUDE.md` or `CLAUDE.local.md` exists in the working directory or above. Project instructions in `/config` can change that choice. The [instruction-file docs](https://code.claude.com/docs/en/memory#agents-md) describe the fallback and [provider support](https://code.claude.com/docs/en/memory#when-agents-md-support-is-unavailable).
+
 ## Repository layout
 
 ```
@@ -30,7 +34,7 @@ src/
   build_picker2.py    canonical Mermaid block generator (extracted at build time)
   generate_suite.py   builds the 8 static curated diagrams in suite/
 tests/
-  tests_picker.js     85-test puppeteer e2e suite
+  tests_picker.js     98-test puppeteer e2e suite
 scripts/
   dev-server.js       zero-dep dev server: serve + live-reload + auto-rebuild
 suite/                .mermaid sources for those diagrams — a fuller reference set
@@ -44,7 +48,7 @@ suite/                .mermaid sources for those diagrams — a fuller reference
 ```bash
 python3 src/build_picker3.py     # writes index.html
 npm install                      # puppeteer-core + chromium for tests
-node tests/tests_picker.js       # 85 tests: behavior, mobile, semantics, regressions
+node tests/tests_picker.js       # 98 tests: behavior, mobile, semantics, regressions
 ```
 
 Rendering uses Mermaid 11.12.0 from cdnjs at runtime; if the CDN is unreachable the page degrades gracefully and shows the generated Mermaid source instead.
@@ -60,7 +64,7 @@ npm test
 npm run test:config      # validates .github/dependabot.yml — no browser needed
 ```
 
-**Run the suite:** `npm test` picks a browser in this order — `CHROMIUM_PATH` → newest Chrome under `~/.cache/puppeteer` → a Playwright Chromium under `$PLAYWRIGHT_BROWSERS_PATH` (pre-installed on Claude Code web at `/opt/pw-browsers`, so `npm install && npm test` just works there) → `/tmp/chromium` (CI). To watch it drive the UI:
+**Run the suite:** `npm test` picks a browser in this order — `CHROMIUM_PATH` → newest Chrome under `~/.cache/puppeteer` → a Playwright Chromium under `$PLAYWRIGHT_BROWSERS_PATH` (pre-installed in cloud sessions at `/opt/pw-browsers`, so `npm install && npm test` just works there) → `/tmp/chromium` (CI). To watch it drive the UI:
 
 ```bash
 npm run test:headed      # visible browser window

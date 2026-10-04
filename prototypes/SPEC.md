@@ -43,15 +43,15 @@ Inline this model (verbatim facts; adapt the JS shape freely).
 | mac_app_local | Claude Desktop app — local sessions (Mac) | Claude Code · Mac | macumd, macauto, repo |
 | mac_cli | CLI in the terminal (Mac) | Claude Code · Mac | macumd, macauto, repo |
 | mac_vscode | VS Code with the Claude Code extension (Mac) | Claude Code · Mac | macumd, macauto, repo |
-| mac_app_web | Desktop app (Mac) → Claude Code on the web sessions | Claude Code · web | repo |
+| mac_app_web | Desktop app (Mac) → Claude Code on the web (cloud sessions) | Claude Code · web | repo |
 | win_app_local | Claude Desktop app — local sessions (Windows side) | Claude Code · Windows | winumd, winauto, repo |
 | win_cli_native | CLI in Windows — native | Claude Code · Windows | winumd, winauto, repo |
 | win_vscode_local | VS Code — local, not WSL (Windows) | Claude Code · Windows | winumd, winauto, repo |
-| win_app_web | Desktop app (Windows) → Claude Code on the web sessions | Claude Code · web | repo |
+| win_app_web | Desktop app (Windows) → Claude Code on the web (cloud sessions) | Claude Code · web | repo |
 | win_app_rc_wsl | Desktop app (Windows) remote-controlling a CLI session in WSL (Remote Control, /rc) | Claude Code · WSL | wslumd, wslauto, repo |
 | win_cli_wsl | CLI in WSL | Claude Code · WSL | wslumd, wslauto, repo |
 | win_vscode_wsl | VS Code on Windows connected to WSL (the "WSL" extension) | Claude Code · WSL | wslumd, wslauto, repo |
-| code_web | Claude Code on the web — claude.ai/code (fresh cloud sandbox per task) | Claude Code · web | repo |
+| code_web | Claude Code on the web (cloud sessions) — claude.ai/code (fresh cloud sandbox per task) | Claude Code · web | repo |
 | cw_project | Cowork sessions inside a project | Claude Cowork | cwmem, repo, prefs |
 | cw_standalone | Cowork one-off sessions ("standalone") — keeps nothing afterward | Claude Cowork | repo, prefs |
 
@@ -61,7 +61,7 @@ Notes:
 - The original picker also has `cw_desktop` ("in the Claude Desktop app") — a
   way *into* Cowork, not a session; it touches no stores. Prototypes may fold
   it away or keep it as an entry annotation.
-- The desktop app used only as a web-session launcher is client-only: nothing
+- The desktop app used only as a Claude Code on the web (cloud sessions) launcher is client-only: nothing
   lands on that machine.
 
 ### Stores (memory homes → stores)
@@ -69,15 +69,15 @@ Notes:
 Homes: **On your account** (online, any device) · **Saved with the project's
 files** (travels with the repo) · **Mac file system** `~/.claude` · **Windows
 file system** `C:\Users\you\.claude` · **WSL file system** `~/.claude` ·
-**On one computer — Cowork** · *(Claude Code on the web has no home of its
-own: fresh cloud sandbox per task.)*
+**On one computer — Cowork** · *(Claude Code on the web (cloud sessions) has
+no persistent laptop home: fresh cloud sandbox per task.)*
 
 | id | official name | home | scope | facts (in / out) |
 |---|---|---|---|---|
 | chatmem | Memory from chat history | account | across | Two parts: chat-history summary ("memory summary", synthesized daily from standalone chats) + saved facts ("memory edits", applied immediately when you say "remember this"). Saved facts feed the summary. Loaded into every new standalone chat. Displayed & managed at Settings → Memory ("Manage memory", home of the "Generate memory from chat history" toggle; your edits/imports become saved facts; export available). |
 | prefs | Instructions for Claude | account | across | Free-text box at Settings → Profile ("Instructions" in the app). Anthropic: "Claude will keep these in mind across chats and Cowork within Anthropic's guidelines." Applied to every chat and to Cowork sessions. |
 | projmem | Project memory ("project-scoped memory") | account | within | One per claude.ai Project. Filled by chatting and by saying "remember this" in that Project; recalled in that Project's chats only. |
-| repo | Project notes file — CLAUDE.md ("project instructions") | repo | within | One per repo/project folder; read at session start by whatever opens it. You write it (code contexts); in Cowork, you or Claude writes it (e.g. /init). Web sessions read it at session start and can update it by saving changes to the project. |
+| repo | Project notes file — CLAUDE.md ("project instructions") | repo | within | One per repo/project folder; read at session start by whatever opens it. You write it (code contexts); in Cowork, you or Claude writes it (e.g. /init). Claude Code on the web (cloud sessions) reads it at session start and can update it by saving changes to the project. |
 | macumd | User CLAUDE.md — Mac ("user instructions") | macfs | across | You write it; applies to all projects on this Mac; read at session start. |
 | winumd | User CLAUDE.md — Windows ("user instructions") | winfs | across | Same, for the Windows side. |
 | wslumd | User CLAUDE.md — WSL ("user instructions") | wslfs | across | Same, for the WSL side. |
@@ -85,6 +85,13 @@ own: fresh cloud sandbox per task.)*
 | winauto | Auto memory — Windows | winfs | within | Same, Windows side. |
 | wslauto | Auto memory — WSL | wslfs | within | Same, WSL side. |
 | cwmem | Cowork project memory | cwloc | within | One per Cowork project, kept on that computer. Remembers as you work; recalled when you reopen that project. |
+
+The repo node keeps its canonical `CLAUDE.md` name pending an owner naming
+decision. Since [v2.1.277](https://github.com/anthropics/claude-code/releases/tag/v2.1.277),
+Claude Code defaults to `AGENTS.md` when no project `CLAUDE.md` or
+`CLAUDE.local.md` exists in the working directory or above; Project instructions
+in `/config` can change the choice. See the [instruction-file docs](https://code.claude.com/docs/en/memory#agents-md)
+and their [provider-support section](https://code.claude.com/docs/en/memory#when-agents-md-support-is-unavailable).
 
 ### Sync semantics (the headline question)
 
@@ -103,14 +110,20 @@ remember nothing project-scoped.
 
 - WSL and native Windows are **different sides**: separate user CLAUDE.md and
   separate auto memory, even on the same physical machine.
-- Claude Code on the web reads **only the repo's CLAUDE.md** — no user
-  CLAUDE.md, no auto memory; fresh cloud sandbox per task.
+- Claude Code on the web (cloud sessions) starts in a **fresh task sandbox**,
+  which does not inherit the laptop's User `CLAUDE.md` or machine-local auto
+  memory. A configured SessionStart hook, such as
+  [`fleet-memory.sh`](https://github.com/Adam-S-Daniel/_agent-guidance/blob/main/.claude/hooks/fleet-memory.sh),
+  can create `~/.claude/CLAUDE.md` before memory assembly, so that same session
+  reads it. The file lives only in the sandbox and is not synced to the laptop;
+  the baseline topology does not add a persistent cloud user store.
 - Remote Control (/rc) from the Windows desktop app: the session **and its
   memory stay in WSL** (observed).
 - One-off Cowork sessions **keep nothing afterward** (they still read
   CLAUDE.md and your Instructions).
 - Auto memory is **machine-local by default**; the `autoMemoryDirectory`
-  setting can move it into the repo so it travels (see docs/portable-memory.md).
+  setting can move it into the repo so it travels, subject to permissions and
+  startup index limits (see the [portable-memory guide](../docs/portable-memory.md)).
 - Standalone chats and Project chats have **disjoint memories**: memory from
   chat history is loaded only into standalone chats; Project memory is
   recalled only inside its Project. Only "Instructions for Claude" spans both.

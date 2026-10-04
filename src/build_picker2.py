@@ -25,7 +25,7 @@ const NODES = {
   K5:  `K5["VS Code with the\nClaude Code extension —\nlocal (not WSL)"]`,
   KW:  `KW["CLI in WSL"]`,
   KV:  `KV["VS Code on Windows,\nconnected to WSL\n(the ${Q}WSL${Q} extension,\nformerly ${Q}Remote - WSL${Q})"]`,
-  C5:  `C5["On the web\n(fresh cloud sandbox per task)"]`,
+  C5:  `C5["Claude Code on the web (cloud sessions)\n(fresh cloud sandbox per task)"]`,
   C6R: `C6R["Session inside a project"]`,
   C7R: `C7R["Session outside a project\n  (no memory carries forward)"]`,
   C6L: `C6L["Session inside a project"]`,
@@ -226,8 +226,8 @@ function compose(sel){
     flows.push('S4 -- "read at session start" --> C5');
     flows.push('C5 -. "can update it by saving changes to the project" .-> S4');
   }
-  if (has('mac_app_web')) flows.push('MAPP -. "opens web sessions (they run in the cloud)" .-> C5');
-  if (has('win_app_web')) flows.push('WAPP -. "opens web sessions (they run in the cloud)" .-> C5');
+  if (has('mac_app_web')) flows.push('MAPP -. "opens Claude Code on the web (cloud sessions)" .-> C5');
+  if (has('win_app_web')) flows.push('WAPP -. "opens Claude Code on the web (cloud sessions)" .-> C5');
   if (has('win_app_rc_wsl'))
     flows.push('WAPP -. "remote-controls it (Remote Control, /rc) · session + memory stay in WSL (observed)" .-> KW');
 
