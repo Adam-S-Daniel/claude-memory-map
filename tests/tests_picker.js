@@ -543,8 +543,10 @@ function check(cond, name){
 
   const repoLegend = await p.$eval('#syncdesk .legend', el => {
     const dt = [...el.querySelectorAll('dt')].find(term => term.textContent === 'CLAUDE.md (repo; AGENTS.md fallback)');
+    const dd = dt?.nextElementSibling;
     return {title: dt?.textContent || '', body: dt?.nextElementSibling?.textContent || '',
-      docs: dt?.nextElementSibling?.querySelector('a')?.href || ''};
+      docs: dd?.querySelector('a')?.href || '',
+      changelog: [...(dd?.querySelectorAll('a') || [])].find(link => link.textContent === 'Claude Code changelog')?.href || ''};
   });
   check(repoLegend.title === 'CLAUDE.md (repo; AGENTS.md fallback)'
         && repoLegend.body.includes('v2.1.277+')
@@ -557,8 +559,9 @@ function check(cond, name){
         && repoLegend.docs === 'https://code.claude.com/docs/en/memory#agents-md',
         'V47b repo legend states precedence and configurable choice');
   check(['Amazon Bedrock', 'Google Vertex AI', 'Microsoft Foundry', 'LLM gateways',
-         'telemetry-disabled sessions'].every(provider => repoLegend.body.includes(provider))
-        && repoLegend.body.includes('v2.1.281+'),
+         'sessions with telemetry disabled'].every(provider => repoLegend.body.includes(provider))
+        && repoLegend.body.includes('v2.1.281+')
+        && repoLegend.changelog === 'https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md#21281',
         'V47c repo legend covers provider expansion');
   const repoDiagram = await p.evaluate(async () => {
     const diagram = await mermaid.mermaidAPI.getDiagramFromText(compose({code_web:true}).code);
@@ -613,13 +616,17 @@ print(namespace['repo_block']('repo'))
           && doc.includes('https://code.claude.com/docs/en/memory#when-agents-md-support-is-unavailable')),
         'V47f README and SPEC describe fallback, precedence, and choice');
   check((readme.match(/https:\/\/github.com\/anthropics\/claude-code\/releases\/tag\/v2\.1\.277/g) || []).length === 1
-        && (readme.match(/https:\/\/github.com\/anthropics\/claude-code\/releases\/tag\/v2\.1\.281/g) || []).length === 1
+        && (readme.match(/https:\/\/github.com\/anthropics\/claude-code\/blob\/main\/CHANGELOG\.md#21281/g) || []).length === 1
+        && !readme.includes('releases/tag/v2.1.281')
         && !spec.includes('github.com/anthropics/claude-code/releases/tag/')
-        && [readmeRepo, specRepo].every(doc => doc.includes('v2.1.281+')
+        && [readmeRepo, specRepo].every(doc => doc.includes('v2.1.281')
           && ['Amazon Bedrock', 'Google Vertex AI', 'Microsoft Foundry', 'LLM gateways',
-              'telemetry-disabled sessions'].every(provider => doc.includes(provider)))
+              'sessions with telemetry disabled'].every(provider => doc.includes(provider))
+          && doc.includes('https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md#21281'))
         && !spec.includes('owner naming'),
-        'V47g release links occur once and docs cover provider expansion');
+        'V47g v2.1.277 release link and v2.1.281 changelog attribution are correct');
+  check(spec.replace(/\s+/g, ' ').includes('One-off Cowork sessions **keep nothing afterward** (they still read CLAUDE.md and your Instructions).'),
+        'V47i SPEC preserves the original one-off Cowork behavior');
 
   check(portable.includes('typical short-path example') && portable.includes('not a guaranteed encoding algorithm')
         && portable.includes('session directories for paths over 200 characters')

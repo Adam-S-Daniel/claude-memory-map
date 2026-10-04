@@ -90,9 +90,9 @@ The repo node shows the `AGENTS.md` fallback. By default, Claude Code v2.1.277+
 reads `AGENTS.md` when no project `CLAUDE.md` or `CLAUDE.local.md` exists
 in the working directory or above. When both files exist, `CLAUDE.md` takes
 precedence; they are not combined automatically. Project instructions in
-`/config` can change this choice. From v2.1.281+, the fallback also applies to
-Amazon Bedrock, Google Vertex AI, Microsoft Foundry, LLM gateways, and
-telemetry-disabled sessions. See the [instruction-file docs](https://code.claude.com/docs/en/memory#agents-md)
+`/config` can change this choice. The [Claude Code v2.1.281 changelog entry](https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md#21281)
+documents that the fallback also applies to Amazon Bedrock, Google Vertex AI,
+Microsoft Foundry, LLM gateways, and sessions with telemetry disabled. See the [instruction-file docs](https://code.claude.com/docs/en/memory#agents-md)
 and their [provider-support section](https://code.claude.com/docs/en/memory#when-agents-md-support-is-unavailable).
 
 ### Sync semantics (the headline question)
@@ -121,8 +121,7 @@ remember nothing project-scoped.
   the baseline topology does not add a persistent cloud user store.
 - Remote Control (/rc) from the Windows desktop app: the session **and its
   memory stay in WSL** (observed).
-- One-off Cowork sessions **keep nothing afterward** (they still read
-  their folder and global instructions).
+- One-off Cowork sessions **keep nothing afterward** (they still read CLAUDE.md and your Instructions).
 - Auto memory is **machine-local by default**; the `autoMemoryDirectory`
   setting can move it into the repo so it travels, subject to permissions and
   startup index limits (see the [portable-memory guide](../docs/portable-memory.md)).
