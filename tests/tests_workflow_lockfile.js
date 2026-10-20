@@ -1,6 +1,6 @@
 // Guards for the workflow lockfile (.github/workflows/actions.lock): workflows
 // name actions by release tag, the lockfile pins each tag to a commit, and the
-// CI "Verify action lockfile" step runs `gh actions-lock --verify`.
+// CI "Verify action lockfile" step runs the shared verify-actions-lock action.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -44,11 +44,15 @@ test('every third-party step uses: is locked in actions.lock', () => {
   for (const { file, doc } of loadWorkflows()) {
     const listed = (lock.workflows || {})[`.github/workflows/${file}`] || [];
     for (const uses of stepUses(doc).filter(isLocked)) {
-      const dep = (lock.dependencies || {})[uses];
+      // gh actions-lock lowercases the owner/repo part of a key (GitHub treats it
+      // case-insensitively); the ref after the last `@` keeps its case.
+      const at = uses.lastIndexOf('@');
+      const key = uses.slice(0, at).toLowerCase() + uses.slice(at);
+      const dep = (lock.dependencies || {})[key];
       assert.ok(dep, `${file}: ${uses} has no actions.lock dependency`);
       assert.match(dep.commit, /^sha1-[0-9a-f]{40}$/, `${uses}: commit is not sha1-<40 lowercase hex>`);
       assert.equal(dep.ref, uses.slice(uses.lastIndexOf('@') + 1), `${uses}: ref disagrees with the tag`);
-      assert.ok(listed.includes(uses), `${file}: actions.lock workflows entry lacks ${uses}`);
+      assert.ok(listed.includes(key), `${file}: actions.lock workflows entry lacks ${uses}`);
     }
   }
 });
@@ -65,29 +69,13 @@ test('job-level reusable workflow uses: end in a full 40-hex commit SHA', () => 
   }
 });
 
-test('ci.yml "Verify action lockfile" step runs the pinned gh actions-lock --verify', () => {
+test('ci.yml "Verify action lockfile" step uses the shared verify-actions-lock action', () => {
   const ci = loadWorkflows().find((w) => w.file === 'ci.yml').doc;
   const steps = ci.jobs.test.steps.filter((s) => s.name === 'Verify action lockfile');
   assert.equal(steps.length, 1, 'expected exactly one "Verify action lockfile" step in the test job');
   const step = steps[0];
+  assert.match(step.uses, /^Adam-S-Daniel\/verify-actions-lock@v\d+\.\d+\.\d+$/);
   assert.ok(!('continue-on-error' in step), 'the verify step must not set continue-on-error');
   assert.ok(!('if' in step), 'the verify step must not carry an if: that could skip it');
   assert.ok(!('if' in ci.jobs.test), 'the test job must not carry an if: that could skip the verify step');
-  assert.equal(step.env.GH_TOKEN, '${{ github.token }}');
-  const lines = step.run.split('\n');
-  const required = [
-    'set -euo pipefail',
-    'gh release download v0.2.0 -R github/gh-actions-lock -p linux-amd64 -O "$ext/gh-actions-lock"',
-    'echo "79ec84c191667fd935a277e6fd3662cf5d3669cccc9e99998731d8f306f373b6  $ext/gh-actions-lock" | sha256sum -c -',
-    '(cd "$ext" && gh extension install .)',
-    'out=$(gh actions-lock --verify --no-interactive --json=valid,findings) || rc=$?',
-    `if [[ "$rc" -ne 0 ]] || ! jq -e '.valid == true and ([.findings[] | select(.category != "cooldown-config-ignored")] | length) == 0' <<<"$out" >/dev/null; then`,
-  ];
-  assert.ok(
-    lines.some((line) => line.trim() === 'exit 1'),
-    'verify step must `exit 1` when verification fails',
-  );
-  for (const line of required) {
-    assert.ok(lines.includes(line), `verify step is missing the line: ${line}`);
-  }
 });
