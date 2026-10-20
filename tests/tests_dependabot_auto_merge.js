@@ -126,15 +126,16 @@ const GH_STUB = [
 
 // Stub `git`: the sweep script only ever fetches refs (discarded output) and
 // diffs a PR head against its base to re-run the manifest-path allowlist.
-// Always answering "package-lock.json" keeps every fixture's diff inside the
-// allowlist so the manifest re-check never becomes what a test is about.
+// It answers "package-lock.json" unless $DIFF_FILES names other paths (one per
+// line), which keeps every fixture's diff inside the allowlist so the manifest
+// re-check never becomes what a test is about, except in the allowlist tests.
 const GIT_STUB = [
   '#!/usr/bin/env bash',
   'if [ "$1" = "fetch" ]; then',
   '  exit 0',
   'fi',
   'if [ "$1" = "diff" ]; then',
-  '  echo "package-lock.json"',
+  '  printf \'%s\\n\' "${DIFF_FILES:-package-lock.json}"',
   '  exit 0',
   'fi',
   'exit 0',
@@ -174,7 +175,7 @@ function basePr(num, overrides = {}) {
 // is what the stub returns from the SECOND `gh pr view 1` call onward (the
 // post-merge-attempt head re-check) — everything else including the first
 // `pr view` call keeps reading `pr`.
-function runOnePr({ pr, after, mergeFails = '' }) {
+function runOnePr({ pr, after, mergeFails = '', diffFiles }) {
   const { bin, fixtures, work } = makeSandbox();
   fs.writeFileSync(path.join(fixtures, 'pr-numbers.txt'), '1\n');
   fs.writeFileSync(path.join(fixtures, 'pr-1.json'), JSON.stringify(pr));
@@ -190,6 +191,7 @@ function runOnePr({ pr, after, mergeFails = '' }) {
       SELF_WORKFLOW,
       MERGE_FAILS: mergeFails,
       HOME: work,
+      ...(diffFiles ? { DIFF_FILES: diffFiles.join('\n') } : {}),
     },
     encoding: 'utf8',
   });
@@ -334,5 +336,73 @@ test('sweep (g): a refused merge with an unchanged head and BEHIND status still 
   const { result, calls } = runOnePr({ pr, mergeFails: '1' });
   assert.equal(calls.filter((l) => l.startsWith('pr update-branch')).length, 1);
   assert.ok(result.stdout.includes('updated=1'), `stdout was:\n${result.stdout}`);
+  assert.equal(result.status, 0, result.stderr);
+});
+
+// Dependabot rewrites .github/workflows/actions.lock alongside each action
+// bump (fleet ADR 0021), so both copies of the manifest-path allowlist must
+// accept exactly that path, and still refuse anything else. The auto-merge
+// job's step is executed for real, with its two `${{ }}` expressions filled in.
+function pathsStepScript() {
+  const wf = loadWorkflow();
+  const step = wf.jobs['auto-merge'].steps.find((s) => s.id === 'paths');
+  assert.ok(step && typeof step.run === 'string', 'expected job `auto-merge` step id `paths` with a run: script');
+  return step.run
+    .replaceAll('${{ github.event.pull_request.base.ref }}', 'main')
+    .replaceAll('${{ github.event.pull_request.head.sha }}', SHA_A);
+}
+
+function runPathsStep(diffFiles) {
+  const { bin, work } = makeSandbox();
+  const output = path.join(work, 'github-output');
+  fs.writeFileSync(output, '');
+  const result = spawnSync('bash', ['-c', pathsStepScript()], {
+    cwd: work,
+    env: {
+      PATH: `${bin}:${process.env.PATH || '/usr/bin:/bin'}`,
+      GITHUB_OUTPUT: output,
+      DIFF_FILES: diffFiles.join('\n'),
+      HOME: work,
+    },
+    encoding: 'utf8',
+  });
+  assert.equal(result.status, 0, result.stderr);
+  return fs.readFileSync(output, 'utf8').trim();
+}
+
+test('allowlist: auto-merge path check accepts .github/workflows/actions.lock', () => {
+  assert.equal(runPathsStep(['.github/workflows/ci.yml', '.github/workflows/actions.lock']), 'safe=true');
+});
+
+test('allowlist: auto-merge path check still rejects other workflow-dir files', () => {
+  assert.equal(runPathsStep(['.github/workflows/actions.lock.bak']), 'safe=false');
+  assert.equal(runPathsStep(['.github/workflows/notes.txt']), 'safe=false');
+});
+
+test('allowlist: sweep re-check accepts .github/workflows/actions.lock and merges', () => {
+  const pr = basePr(1, {
+    statusCheckRollup: [
+      { workflowName: 'CI', name: 'test', conclusion: 'SUCCESS' },
+      { workflowName: SELF_WORKFLOW, name: 'auto-merge', conclusion: 'SUCCESS' },
+    ],
+  });
+  const { result, calls } = runOnePr({
+    pr,
+    diffFiles: ['.github/workflows/ci.yml', '.github/workflows/actions.lock'],
+  });
+  assert.equal(calls.filter((l) => l.startsWith('pr merge ')).length, 1, `stdout was:\n${result.stdout}`);
+  assert.equal(result.status, 0, result.stderr);
+});
+
+test('allowlist: sweep re-check still skips a non-manifest path', () => {
+  const pr = basePr(1, {
+    statusCheckRollup: [
+      { workflowName: 'CI', name: 'test', conclusion: 'SUCCESS' },
+      { workflowName: SELF_WORKFLOW, name: 'auto-merge', conclusion: 'SUCCESS' },
+    ],
+  });
+  const { result, calls } = runOnePr({ pr, diffFiles: ['.github/workflows/actions.lock', 'README.md'] });
+  assert.equal(calls.filter((l) => l.startsWith('pr merge ')).length, 0);
+  assert.ok(result.stdout.includes('non-manifest path on re-check'), `stdout was:\n${result.stdout}`);
   assert.equal(result.status, 0, result.stderr);
 });

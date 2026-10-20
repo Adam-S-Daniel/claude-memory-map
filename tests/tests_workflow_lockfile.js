@@ -71,6 +71,8 @@ test('ci.yml "Verify action lockfile" step runs the pinned gh actions-lock --ver
   assert.equal(steps.length, 1, 'expected exactly one "Verify action lockfile" step in the test job');
   const step = steps[0];
   assert.ok(!('continue-on-error' in step), 'the verify step must not set continue-on-error');
+  assert.ok(!('if' in step), 'the verify step must not carry an if: that could skip it');
+  assert.ok(!('if' in ci.jobs.test), 'the test job must not carry an if: that could skip the verify step');
   assert.equal(step.env.GH_TOKEN, '${{ github.token }}');
   const lines = step.run.split('\n');
   const required = [
@@ -81,6 +83,10 @@ test('ci.yml "Verify action lockfile" step runs the pinned gh actions-lock --ver
     'out=$(gh actions-lock --verify --no-interactive --json=valid,findings) || rc=$?',
     `if [[ "$rc" -ne 0 ]] || ! jq -e '.valid == true and ([.findings[] | select(.category != "cooldown-config-ignored")] | length) == 0' <<<"$out" >/dev/null; then`,
   ];
+  assert.ok(
+    lines.some((line) => line.trim() === 'exit 1'),
+    'verify step must `exit 1` when verification fails',
+  );
   for (const line of required) {
     assert.ok(lines.includes(line), `verify step is missing the line: ${line}`);
   }
