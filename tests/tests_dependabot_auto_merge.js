@@ -406,3 +406,97 @@ test('allowlist: sweep re-check still skips a non-manifest path', () => {
   assert.ok(result.stdout.includes('non-manifest path on re-check'), `stdout was:\n${result.stdout}`);
   assert.equal(result.status, 0, result.stderr);
 });
+
+// A rename is the hole: with git's default rename detection, `--name-only`
+// prints only a rename's NEW name, so a non-manifest file (docs/notes.md)
+// renamed into an allowed path (.github/workflows/x.yml) is deleted from its
+// old path without the allowlist ever seeing that path. Both jobs' diffs must
+// pass `--no-renames`. These tests run each job's real script against a real
+// git repository holding that rename; only `git fetch` is stubbed out.
+test('allowlist: every git diff in the workflow carries --no-renames', () => {
+  const wf = loadWorkflow();
+  const diffs = Object.values(wf.jobs)
+    .flatMap((job) => job.steps || [])
+    .filter((s) => typeof s.run === 'string')
+    .flatMap((s) => s.run.split('\n'))
+    .filter((line) => line.includes('git diff'));
+  assert.equal(diffs.length, 2, diffs.join('\n'));
+  for (const line of diffs) {
+    assert.ok(line.trim().split(/\s+/).includes('--no-renames'), line);
+  }
+});
+
+function makeRenameRepo() {
+  const realGit = spawnSync('bash', ['-c', 'command -v git'], { encoding: 'utf8' }).stdout.trim();
+  assert.ok(realGit, 'git is required on PATH');
+  const { bin, fixtures, work } = makeSandbox();
+  // Pass-through git: `fetch` is a no-op (the refs already exist locally).
+  fs.writeFileSync(
+    path.join(bin, 'git'),
+    `#!/usr/bin/env bash\nif [ "$1" = "fetch" ]; then exit 0; fi\nexec "${realGit}" "$@"\n`,
+  );
+  const git = (...args) => {
+    const r = spawnSync(realGit, ['-C', work, ...args], { encoding: 'utf8' });
+    assert.equal(r.status, 0, r.stderr);
+    return r.stdout.trim();
+  };
+  git('init', '-q', '-b', 'main');
+  git('config', 'user.email', 'test@example.com');
+  git('config', 'user.name', 'Test');
+  git('config', 'diff.renames', 'true'); // git's default, made explicit
+  fs.mkdirSync(path.join(work, 'docs'));
+  fs.writeFileSync(path.join(work, 'docs', 'notes.md'), 'on: push\njobs: {}\n'.repeat(20));
+  git('add', '.');
+  git('commit', '-q', '-m', 'base');
+  git('update-ref', 'refs/remotes/origin/main', 'HEAD');
+  fs.mkdirSync(path.join(work, '.github', 'workflows'), { recursive: true });
+  git('mv', 'docs/notes.md', '.github/workflows/x.yml');
+  git('commit', '-q', '-m', 'rename');
+  const head = git('rev-parse', 'HEAD');
+  git('update-ref', 'refs/remotes/dependabot-sweep/pr-1', head);
+  return { bin, fixtures, work, head };
+}
+
+test('allowlist: auto-merge path check refuses a non-manifest file renamed into .github/workflows/x.yml', () => {
+  const { bin, work, head } = makeRenameRepo();
+  const output = path.join(work, '..', 'github-output');
+  fs.writeFileSync(output, '');
+  const script = pathsStepScript().replaceAll(SHA_A, head);
+  const result = spawnSync('bash', ['-c', script], {
+    cwd: work,
+    env: { PATH: `${bin}:${process.env.PATH || '/usr/bin:/bin'}`, GITHUB_OUTPUT: output, HOME: work },
+    encoding: 'utf8',
+  });
+  assert.equal(result.status, 0, result.stderr);
+  assert.ok(result.stdout.includes('docs/notes.md'), `stdout was:\n${result.stdout}`);
+  assert.equal(fs.readFileSync(output, 'utf8').trim(), 'safe=false');
+});
+
+test('allowlist: sweep re-check refuses a non-manifest file renamed into .github/workflows/x.yml', () => {
+  const { bin, fixtures, work } = makeRenameRepo();
+  const pr = basePr(1, {
+    statusCheckRollup: [
+      { workflowName: 'CI', name: 'test', conclusion: 'SUCCESS' },
+      { workflowName: SELF_WORKFLOW, name: 'auto-merge', conclusion: 'SUCCESS' },
+    ],
+  });
+  fs.writeFileSync(path.join(fixtures, 'pr-numbers.txt'), '1\n');
+  fs.writeFileSync(path.join(fixtures, 'pr-1.json'), JSON.stringify(pr));
+  const result = spawnSync('bash', ['-c', sweepScript()], {
+    cwd: work,
+    env: {
+      PATH: `${bin}:${process.env.PATH || '/usr/bin:/bin'}`,
+      FIXTURES: fixtures,
+      GITHUB_REPOSITORY: REPO,
+      SELF_WORKFLOW,
+      MERGE_FAILS: '',
+      HOME: work,
+    },
+    encoding: 'utf8',
+  });
+  const callsPath = path.join(fixtures, 'calls.log');
+  const calls = fs.existsSync(callsPath) ? fs.readFileSync(callsPath, 'utf8').split('\n').filter(Boolean) : [];
+  assert.equal(calls.filter((l) => l.startsWith('pr merge ')).length, 0, `stdout was:\n${result.stdout}`);
+  assert.ok(result.stdout.includes('non-manifest path on re-check: docs/notes.md'), `stdout was:\n${result.stdout}`);
+  assert.equal(result.status, 0, result.stderr);
+});
