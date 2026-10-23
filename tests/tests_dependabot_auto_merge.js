@@ -126,15 +126,16 @@ const GH_STUB = [
 
 // Stub `git`: the sweep script only ever fetches refs (discarded output) and
 // diffs a PR head against its base to re-run the manifest-path allowlist.
-// Always answering "package-lock.json" keeps every fixture's diff inside the
-// allowlist so the manifest re-check never becomes what a test is about.
+// It answers "package-lock.json" unless $DIFF_FILES names other paths (one per
+// line), which keeps every fixture's diff inside the allowlist so the manifest
+// re-check never becomes what a test is about, except in the allowlist tests.
 const GIT_STUB = [
   '#!/usr/bin/env bash',
   'if [ "$1" = "fetch" ]; then',
   '  exit 0',
   'fi',
   'if [ "$1" = "diff" ]; then',
-  '  echo "package-lock.json"',
+  '  printf \'%s\\n\' "${DIFF_FILES:-package-lock.json}"',
   '  exit 0',
   'fi',
   'exit 0',
@@ -174,7 +175,7 @@ function basePr(num, overrides = {}) {
 // is what the stub returns from the SECOND `gh pr view 1` call onward (the
 // post-merge-attempt head re-check) — everything else including the first
 // `pr view` call keeps reading `pr`.
-function runOnePr({ pr, after, mergeFails = '' }) {
+function runOnePr({ pr, after, mergeFails = '', diffFiles }) {
   const { bin, fixtures, work } = makeSandbox();
   fs.writeFileSync(path.join(fixtures, 'pr-numbers.txt'), '1\n');
   fs.writeFileSync(path.join(fixtures, 'pr-1.json'), JSON.stringify(pr));
@@ -190,6 +191,7 @@ function runOnePr({ pr, after, mergeFails = '' }) {
       SELF_WORKFLOW,
       MERGE_FAILS: mergeFails,
       HOME: work,
+      ...(diffFiles ? { DIFF_FILES: diffFiles.join('\n') } : {}),
     },
     encoding: 'utf8',
   });
@@ -334,5 +336,167 @@ test('sweep (g): a refused merge with an unchanged head and BEHIND status still 
   const { result, calls } = runOnePr({ pr, mergeFails: '1' });
   assert.equal(calls.filter((l) => l.startsWith('pr update-branch')).length, 1);
   assert.ok(result.stdout.includes('updated=1'), `stdout was:\n${result.stdout}`);
+  assert.equal(result.status, 0, result.stderr);
+});
+
+// Dependabot rewrites .github/workflows/actions.lock alongside each action
+// bump (fleet ADR 0024), so both copies of the manifest-path allowlist must
+// accept exactly that path, and still refuse anything else. The auto-merge
+// job's step is executed for real, with its two `${{ }}` expressions filled in.
+function pathsStepScript() {
+  const wf = loadWorkflow();
+  const step = wf.jobs['auto-merge'].steps.find((s) => s.id === 'paths');
+  assert.ok(step && typeof step.run === 'string', 'expected job `auto-merge` step id `paths` with a run: script');
+  return step.run
+    .replaceAll('${{ github.event.pull_request.base.ref }}', 'main')
+    .replaceAll('${{ github.event.pull_request.head.sha }}', SHA_A);
+}
+
+function runPathsStep(diffFiles) {
+  const { bin, work } = makeSandbox();
+  const output = path.join(work, 'github-output');
+  fs.writeFileSync(output, '');
+  const result = spawnSync('bash', ['-c', pathsStepScript()], {
+    cwd: work,
+    env: {
+      PATH: `${bin}:${process.env.PATH || '/usr/bin:/bin'}`,
+      GITHUB_OUTPUT: output,
+      DIFF_FILES: diffFiles.join('\n'),
+      HOME: work,
+    },
+    encoding: 'utf8',
+  });
+  assert.equal(result.status, 0, result.stderr);
+  return fs.readFileSync(output, 'utf8').trim();
+}
+
+test('allowlist: auto-merge path check accepts .github/workflows/actions.lock', () => {
+  assert.equal(runPathsStep(['.github/workflows/ci.yml', '.github/workflows/actions.lock']), 'safe=true');
+});
+
+test('allowlist: auto-merge path check still rejects other workflow-dir files', () => {
+  assert.equal(runPathsStep(['.github/workflows/actions.lock.bak']), 'safe=false');
+  assert.equal(runPathsStep(['.github/workflows/notes.txt']), 'safe=false');
+});
+
+test('allowlist: sweep re-check accepts .github/workflows/actions.lock and merges', () => {
+  const pr = basePr(1, {
+    statusCheckRollup: [
+      { workflowName: 'CI', name: 'test', conclusion: 'SUCCESS' },
+      { workflowName: SELF_WORKFLOW, name: 'auto-merge', conclusion: 'SUCCESS' },
+    ],
+  });
+  const { result, calls } = runOnePr({
+    pr,
+    diffFiles: ['.github/workflows/ci.yml', '.github/workflows/actions.lock'],
+  });
+  assert.equal(calls.filter((l) => l.startsWith('pr merge ')).length, 1, `stdout was:\n${result.stdout}`);
+  assert.equal(result.status, 0, result.stderr);
+});
+
+test('allowlist: sweep re-check still skips a non-manifest path', () => {
+  const pr = basePr(1, {
+    statusCheckRollup: [
+      { workflowName: 'CI', name: 'test', conclusion: 'SUCCESS' },
+      { workflowName: SELF_WORKFLOW, name: 'auto-merge', conclusion: 'SUCCESS' },
+    ],
+  });
+  const { result, calls } = runOnePr({ pr, diffFiles: ['.github/workflows/actions.lock', 'README.md'] });
+  assert.equal(calls.filter((l) => l.startsWith('pr merge ')).length, 0);
+  assert.ok(result.stdout.includes('non-manifest path on re-check'), `stdout was:\n${result.stdout}`);
+  assert.equal(result.status, 0, result.stderr);
+});
+
+// A rename is the hole: with git's default rename detection, `--name-only`
+// prints only a rename's NEW name, so a non-manifest file (docs/notes.md)
+// renamed into an allowed path (.github/workflows/x.yml) is deleted from its
+// old path without the allowlist ever seeing that path. Both jobs' diffs must
+// pass `--no-renames`. These tests run each job's real script against a real
+// git repository holding that rename; only `git fetch` is stubbed out.
+test('allowlist: every git diff in the workflow carries --no-renames', () => {
+  const wf = loadWorkflow();
+  const diffs = Object.values(wf.jobs)
+    .flatMap((job) => job.steps || [])
+    .filter((s) => typeof s.run === 'string')
+    .flatMap((s) => s.run.split('\n'))
+    .filter((line) => line.includes('git diff'));
+  assert.equal(diffs.length, 2, diffs.join('\n'));
+  for (const line of diffs) {
+    assert.ok(line.trim().split(/\s+/).includes('--no-renames'), line);
+  }
+});
+
+function makeRenameRepo() {
+  const realGit = spawnSync('bash', ['-c', 'command -v git'], { encoding: 'utf8' }).stdout.trim();
+  assert.ok(realGit, 'git is required on PATH');
+  const { bin, fixtures, work } = makeSandbox();
+  // Pass-through git: `fetch` is a no-op (the refs already exist locally).
+  fs.writeFileSync(
+    path.join(bin, 'git'),
+    `#!/usr/bin/env bash\nif [ "$1" = "fetch" ]; then exit 0; fi\nexec "${realGit}" "$@"\n`,
+  );
+  const git = (...args) => {
+    const r = spawnSync(realGit, ['-C', work, ...args], { encoding: 'utf8' });
+    assert.equal(r.status, 0, r.stderr);
+    return r.stdout.trim();
+  };
+  git('init', '-q', '-b', 'main');
+  git('config', 'user.email', 'test@example.com');
+  git('config', 'user.name', 'Test');
+  git('config', 'diff.renames', 'true'); // git's default, made explicit
+  fs.mkdirSync(path.join(work, 'docs'));
+  fs.writeFileSync(path.join(work, 'docs', 'notes.md'), 'on: push\njobs: {}\n'.repeat(20));
+  git('add', '.');
+  git('commit', '-q', '-m', 'base');
+  git('update-ref', 'refs/remotes/origin/main', 'HEAD');
+  fs.mkdirSync(path.join(work, '.github', 'workflows'), { recursive: true });
+  git('mv', 'docs/notes.md', '.github/workflows/x.yml');
+  git('commit', '-q', '-m', 'rename');
+  const head = git('rev-parse', 'HEAD');
+  git('update-ref', 'refs/remotes/dependabot-sweep/pr-1', head);
+  return { bin, fixtures, work, head };
+}
+
+test('allowlist: auto-merge path check refuses a non-manifest file renamed into .github/workflows/x.yml', () => {
+  const { bin, work, head } = makeRenameRepo();
+  const output = path.join(work, '..', 'github-output');
+  fs.writeFileSync(output, '');
+  const script = pathsStepScript().replaceAll(SHA_A, head);
+  const result = spawnSync('bash', ['-c', script], {
+    cwd: work,
+    env: { PATH: `${bin}:${process.env.PATH || '/usr/bin:/bin'}`, GITHUB_OUTPUT: output, HOME: work },
+    encoding: 'utf8',
+  });
+  assert.equal(result.status, 0, result.stderr);
+  assert.ok(result.stdout.includes('docs/notes.md'), `stdout was:\n${result.stdout}`);
+  assert.equal(fs.readFileSync(output, 'utf8').trim(), 'safe=false');
+});
+
+test('allowlist: sweep re-check refuses a non-manifest file renamed into .github/workflows/x.yml', () => {
+  const { bin, fixtures, work } = makeRenameRepo();
+  const pr = basePr(1, {
+    statusCheckRollup: [
+      { workflowName: 'CI', name: 'test', conclusion: 'SUCCESS' },
+      { workflowName: SELF_WORKFLOW, name: 'auto-merge', conclusion: 'SUCCESS' },
+    ],
+  });
+  fs.writeFileSync(path.join(fixtures, 'pr-numbers.txt'), '1\n');
+  fs.writeFileSync(path.join(fixtures, 'pr-1.json'), JSON.stringify(pr));
+  const result = spawnSync('bash', ['-c', sweepScript()], {
+    cwd: work,
+    env: {
+      PATH: `${bin}:${process.env.PATH || '/usr/bin:/bin'}`,
+      FIXTURES: fixtures,
+      GITHUB_REPOSITORY: REPO,
+      SELF_WORKFLOW,
+      MERGE_FAILS: '',
+      HOME: work,
+    },
+    encoding: 'utf8',
+  });
+  const callsPath = path.join(fixtures, 'calls.log');
+  const calls = fs.existsSync(callsPath) ? fs.readFileSync(callsPath, 'utf8').split('\n').filter(Boolean) : [];
+  assert.equal(calls.filter((l) => l.startsWith('pr merge ')).length, 0, `stdout was:\n${result.stdout}`);
+  assert.ok(result.stdout.includes('non-manifest path on re-check: docs/notes.md'), `stdout was:\n${result.stdout}`);
   assert.equal(result.status, 0, result.stderr);
 });
