@@ -340,7 +340,7 @@ test('sweep (g): a refused merge with an unchanged head and BEHIND status still 
 });
 
 // Dependabot rewrites .github/workflows/actions.lock alongside each action
-// bump (fleet ADR 0021), so both copies of the manifest-path allowlist must
+// bump (fleet ADR 0024), so both copies of the manifest-path allowlist must
 // accept exactly that path, and still refuse anything else. The auto-merge
 // job's step is executed for real, with its two `${{ }}` expressions filled in.
 function pathsStepScript() {

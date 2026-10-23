@@ -22,7 +22,7 @@ jobs:
           node-version: '20'
 
       - name: Verify action lockfile
-        uses: Adam-S-Daniel/verify-actions-lock@v1.0.0
+        uses: Adam-S-Daniel/verify-actions-lock@v1.1.0
 
       - name: Install dependencies
         run: npm install
