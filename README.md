@@ -101,7 +101,7 @@ Setup (one-time): a fine-grained PAT scoped to `Adam-S-Daniel/adamdaniel.ai` wit
 
 ## Guides
 
-- [Portable memory across machines](./docs/portable-memory.md) — why auto memory is machine-local by default, and how to make it travel with the repo via `autoMemoryDirectory`.
+- [Portable memory across machines](./docs/portable-memory.md) — why auto memory is machine-local by default, the startup index limits, and why relocating it into the repo via `autoMemoryDirectory` is not recommended.
 
 ## Sourcing conventions
 
