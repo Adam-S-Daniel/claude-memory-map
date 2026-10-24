@@ -1,5 +1,7 @@
 # Portable memory: taking auto memory across machines
 
+> **Not recommended: the in-repo `autoMemoryDirectory` pattern below.** Pointing `autoMemoryDirectory` at a git-tracked folder inside a repo does not work in Claude Code cloud and Projects sessions: hosted sessions do not apply the setting. The value must also be absolute or start with `~/`, so it does not resolve identically on every machine (see the layout requirement below). The owner has retired this pattern in his own registry. The section is kept as a reference for how the setting behaves, not as a recommendation.
+
 Claude Code's auto memory writes itself as you work — corrective notes, debugging insights, build commands — but by default it doesn't travel. This page covers where it actually lives, what that breaks if you split work across WSL/Windows, multiple machines, or hosted sessions, and the setting and permissions that can make it portable.
 
 ## Where auto memory actually lives
@@ -16,7 +18,7 @@ That keying is also the catch: it's *machine-local by design*. Per Anthropic's d
 - **Deleting a workspace orphans its memory.** Remove or rename a project directory and its memory directory has no path back to it — nothing deletes it, nothing finds it again.
 - **Hosted sessions do not inherit laptop memory.** Claude Code on the web (cloud sessions) starts from a fresh clone; the laptop's machine-local memory directory isn't part of that clone. Committed memory and configured startup hooks can supply content inside the task sandbox, but they do not sync the laptop's memory directory.
 
-## Making memory portable: `autoMemoryDirectory`
+## The `autoMemoryDirectory` setting (not recommended for portability)
 
 Since Claude Code v2.1.74, `autoMemoryDirectory` redirects where a project's memory lives. Set it in a settings file:
 
