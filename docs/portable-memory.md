@@ -57,11 +57,9 @@ An over-limit write succeeds in saving the file but returns an explicit error as
 
 ## Migrating existing memory
 
-If auto memory is already scattered across `~/.claude/projects/*/memory/` on one or more machines, don't hand-copy files. Use the [`migrate-claude-memory`](https://github.com/Adam-S-Daniel/agentskills/tree/main/plugins/migrate-claude-memory) plugin from `Adam-S-Daniel/agentskills`:
+If auto memory is already scattered across `~/.claude/projects/*/memory/` on one or more machines, don't hand-copy files. The [`migrate-claude-memory`](https://github.com/Adam-S-Daniel/adam-agentskills/tree/main/plugins/adam-coding-local/skills/migrate-claude-memory) skill in `Adam-S-Daniel/adam-agentskills` inventories the stores on a machine, flags orphaned ones for review, and can copy a chosen store elsewhere.
 
-1. **Inventory** — list what's stored where, across machines and worktrees.
-2. **Migrate** — consolidate into one target directory (e.g. inside this repo).
-3. **Set the setting** — point `autoMemoryDirectory` at the consolidated directory and commit `.claude/settings.json`.
+It runs locally only, because it needs that machine's `~/.claude` directory. For the reasons above, copying a store into a repo and pointing `autoMemoryDirectory` at it is not recommended: hosted sessions ignore the setting.
 
 ## Related reading
 
