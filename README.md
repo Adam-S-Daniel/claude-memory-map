@@ -109,4 +109,4 @@ Every store, edge, and term traces to documented vanilla behavior in Anthropic's
 
 ## License
 
-MIT
+Apache-2.0. See [LICENSE](LICENSE).
