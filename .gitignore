@@ -3,3 +3,4 @@ node_modules/
 __pycache__/
 chrome/
 package-lock.json
+!.githooks/dated-phrasing/package-lock.json
