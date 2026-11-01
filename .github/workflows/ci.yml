@@ -6,6 +6,12 @@ on:
   pull_request:
     branches: [main]
 
+# The job only checks out, installs and tests; it never writes to the repo.
+# Without this, GITHUB_TOKEN gets the repo's default scope (CodeQL
+# actions/missing-workflow-permissions, alert #1).
+permissions:
+  contents: read
+
 # `test` is meant to be a REQUIRED status check on main (cms-platform#437) —
 # keep it a plain job id with no `name:`, no matrix, no `concurrency` group,
 # and no `timeout-minutes`, and keep it present on every pull request to main.
