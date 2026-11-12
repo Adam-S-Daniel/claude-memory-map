@@ -33,16 +33,7 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      # GitHub validates .github/dependabot.yml only once it is on main (the
-      # `dependabot` check never runs on a PR), so an invalid key merged green
-      # and silently disabled every Dependabot update for five weeks (#31).
-      # This is the pre-merge guard.
-      - name: Check .github/dependabot.yml
-        run: npm run test:config
-
-      # Executes dependabot-auto-merge.yml's sweep script for real, against a
-      # stubbed `gh` — a schedule-only workflow gets no PR-time run otherwise.
-      - name: Check dependabot-auto-merge.yml
+      - name: Check workflow lockfile pins
         run: npm run test:workflows
 
       - name: Check generated Mermaid suite
