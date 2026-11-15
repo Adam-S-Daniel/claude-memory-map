@@ -4,6 +4,7 @@ const puppeteer = require('puppeteer-core');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const crypto = require('crypto');
 const {spawnSync} = require('child_process');
 const TARGET = 'file://' + path.resolve(__dirname, '../index.html');
 const MERMAID_BUNDLE = path.resolve(__dirname, '../node_modules/mermaid/dist/mermaid.min.js');
@@ -74,8 +75,11 @@ function check(cond, name){
     page.on('request', r => {
       if (!r.url().includes('cdnjs')) return r.continue();
       if (blockCdn) return r.abort();
+      // The page loads Mermaid with crossorigin="anonymous" and an SRI hash, so the
+      // stand-in response needs a CORS header and must be byte-identical to cdnjs's file.
       r.respond({contentType:'application/javascript',
-        body: fs.readFileSync(MERMAID_BUNDLE,'utf8')});
+        headers:{'Access-Control-Allow-Origin':'*'},
+        body: fs.readFileSync(MERMAID_BUNDLE)});
     });
     await page.goto(TARGET);
     if (expandAll) await page.evaluate(() =>
@@ -91,6 +95,31 @@ function check(cond, name){
   }
   const diagText = page => page.$eval('#diagram', el => el.textContent).catch(()=> '');
   const setScope = async (page, v) => { try { await page.select('#scope', v); await sleep(250); } catch {} };
+
+  // ---------- Mermaid pin: page URL, SRI hash and served bundle agree ----------
+  // The page pins a cdnjs URL plus an integrity hash; the tests stand in for cdnjs with
+  // node_modules/mermaid. All three (and package.json's devDependency) must move together.
+  console.log('P1: Mermaid pin agreement');
+  const pinPage = await freshPage(DESKTOP, true, false);
+  const pin = await pinPage.evaluate(() => [...document.querySelectorAll('script[src]')]
+    .filter(s => new URL(s.src).hostname === 'cdnjs.cloudflare.com')
+    .map(s => ({path: new URL(s.src).pathname.split('/'), integrity: s.integrity,
+                crossOrigin: s.crossOrigin})));
+  await pinPage.close();
+  const pinVersion = pin.length === 1 && pin[0].path.length === 6
+    && pin[0].path.slice(0, 4).join('/') === '/ajax/libs/mermaid'
+    && pin[0].path[5] === 'mermaid.min.js' ? pin[0].path[4] : null;
+  const servedSri = 'sha384-' + crypto.createHash('sha384')
+    .update(fs.readFileSync(MERMAID_BUNDLE)).digest('base64');
+  const installed = JSON.parse(fs.readFileSync(
+    path.resolve(__dirname, '../node_modules/mermaid/package.json'), 'utf8')).version;
+  const declared = JSON.parse(fs.readFileSync(
+    path.resolve(__dirname, '../package.json'), 'utf8')).devDependencies.mermaid;
+  check(pinVersion !== null, 'P1a page loads exactly one cdnjs script, mermaid.min.js by version');
+  check(pin.length === 1 && pin[0].integrity === servedSri && pin[0].crossOrigin === 'anonymous',
+        `P1b page integrity matches the served bundle (${servedSri}) with crossorigin=anonymous`);
+  check(pinVersion === installed && declared === installed,
+        `P1c page version (${pinVersion}), devDependency (${declared}) and installed (${installed}) agree`);
 
   // ---------- DESKTOP: live behavior ----------
   console.log('D1-D2: live layout at load');

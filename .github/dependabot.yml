@@ -81,3 +81,12 @@ updates:
     cooldown:
       default-days: 7
       semver-major-days: 30
+    # Mermaid moves only by hand. index.html loads it from a pinned cdnjs URL
+    # with a Subresource Integrity hash (src/build_picker3.py), and
+    # tests/tests_picker.js serves node_modules/mermaid in place of cdnjs, so
+    # check P1 fails unless the page URL's version, its integrity hash and
+    # this devDependency all name the same release. Bump all three in one PR:
+    # hash the new cdnjs file (openssl dgst -sha384 -binary | base64), check
+    # it matches the npm tarball's dist/mermaid.min.js, then rebuild.
+    ignore:
+      - dependency-name: mermaid
