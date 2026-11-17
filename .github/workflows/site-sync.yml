@@ -72,6 +72,8 @@ jobs:
             changes="Source commit: https://github.com/${GITHUB_REPOSITORY}/commit/${GITHUB_SHA}"
           fi
           body=$(cat <<EOF
+          ## TLDR
+
           Automated vendor bump of \`assets/tools/claude-memory-map/index.html\` from ${GITHUB_REPOSITORY}@${short}.
 
           ${changes}

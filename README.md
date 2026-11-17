@@ -51,7 +51,7 @@ npm install                      # puppeteer-core + chromium for tests
 node tests/tests_picker.js       # 105 tests: behavior, mobile, semantics, regressions
 ```
 
-Rendering uses Mermaid 11.12.0 from cdnjs at runtime; if the CDN is unreachable the page degrades gracefully and shows the generated Mermaid source instead.
+Rendering uses Mermaid 11.17.2 from cdnjs at runtime; if the CDN is unreachable the page degrades gracefully and shows the generated Mermaid source instead.
 
 ## Local development & debugging
 
