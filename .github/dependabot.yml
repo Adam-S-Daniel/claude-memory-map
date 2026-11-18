@@ -17,7 +17,7 @@ updates:
   - package-ecosystem: github-actions
     directory: "/"
     schedule:
-      interval: weekly
+      interval: daily
     # MINIMUM PACKAGE AGE ("cooldown") — how long a release must exist before
     # Dependabot will even OPEN the PR. Version updates ONLY: security
     # updates bypass cooldown by GitHub's spec, so an advisory still opens
@@ -26,7 +26,8 @@ updates:
     # a floor from zero — it mechanises this account's standing 7-day
     # cooling-off convention for third-party action releases (pinned through
     # .github/workflows/actions.lock per _agent-guidance ADR 0024), matching
-    # cms-platform's own .github/dependabot.yml.
+    # cms-platform's own .github/dependabot.yml. Our own actions are exempt;
+    # see `exclude` below.
     #
     # NO semver-major-days (and no semver-minor-days / semver-patch-days
     # either): GitHub's Dependabot options reference supports only
@@ -46,20 +47,14 @@ updates:
     # the support.
     cooldown:
       default-days: 7
-      # cms-platform releases are this account's own code, gated by its own
-      # required checks before a tag ever exists, so they don't need the
-      # 7-day cooling-off above — that applies to third-party actions. This
-      # entry used to ignore cms-platform bumps outright: the
-      # scheduled-run-health.yml thin caller carried the platform version
-      # TWICE (the reusable's `uses:@<tag>` and a `platform_ref:` input),
-      # and this ecosystem saw only the `uses:` half, so an unignored bump
-      # would have moved the workflow and stranded the script pin — the fate
-      # GHA-bench, which never carried this ignore, was left in. The
-      # reusable now resolves its own script commit from the job context, so
-      # the caller names the version once, and this exclude is what lets
-      # that one bump land without the third-party wait
-      # (https://github.com/Adam-S-Daniel/cms-platform/issues/424).
-      exclude: ["Adam-S-Daniel/cms-platform/*"]
+      # Our own actions skip the 7-day wait above. That cooling-off guards
+      # against a bad third-party release; an Adam-S-Daniel or jodidaniel
+      # action is this account's own code, gated by its own required checks
+      # before a tag exists. `Adam-S-Daniel/*` also covers the cms-platform
+      # reusable workflows, so it replaces the narrower
+      # `Adam-S-Daniel/cms-platform/*` entry that
+      # https://github.com/Adam-S-Daniel/cms-platform/issues/424 added.
+      exclude: ["Adam-S-Daniel/*", "jodidaniel/*"]
   - package-ecosystem: npm
     directory: "/"
     schedule:
