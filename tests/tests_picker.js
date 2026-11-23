@@ -218,6 +218,15 @@ function check(cond, name){
     return document.getElementById('fitbtn').textContent.includes('Fit');
   });
   check(toggleWorks, 'M5b toggle switches to actual size');
+  const mobLabel = await p.evaluate(async () => {
+    const btn = document.querySelector('#syncmob .labelmode-m');
+    if (!btn) return false;
+    const before = btn.textContent;
+    btn.click();
+    await new Promise(r => setTimeout(r, 300));
+    return document.querySelector('#syncmob .labelmode-m').textContent !== before;
+  });
+  check(mobLabel, 'M5c phone layout has a reachable brief/full labels toggle');
   await p.close();
 
   // ---------- regressions (must hold in v3) ----------
@@ -287,6 +296,20 @@ function check(cond, name){
   check(sync.includes('Memory from chat history') && sync.includes('every standalone chat')
         && !sync.includes('Chat memory'),
         'N2f official term with cross-chat scope, no invented term');
+  await p.close();
+
+  console.log('Z: full-screen title and centered actual-size map');
+  p = await freshPage(DESKTOP);
+  check((await p.title()).startsWith('Claude Memory Map'), 'Z1 page title names the tool');
+  await p.click('#ch_standalone'); await p.click('#ch_project'); await sleep(1500);
+  const centered = await p.evaluate(() => {
+    const d = document.getElementById('diagram');
+    const mx = d.scrollWidth - d.clientWidth, my = d.scrollHeight - d.clientHeight;
+    return { fit: d.classList.contains('fit'), mx, my, sl: d.scrollLeft, st: d.scrollTop };
+  });
+  check(!centered.fit && (centered.mx <= 2 || Math.abs(centered.sl - centered.mx / 2) <= 2)
+        && (centered.my <= 2 || Math.abs(centered.st - centered.my / 2) <= 2),
+        'Z2 desktop opens at actual size scrolled to the map center');
   await p.close();
 
   console.log('L: one-item-per-line + brief/full label modes');
